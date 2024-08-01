@@ -10,6 +10,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/vmware/govmomi"
 	"github.com/vmware/govmomi/find"
+	"github.com/vmware/govmomi/object"
 	"github.com/vmware/govmomi/vapi/rest"
 	"github.com/vmware/govmomi/vim25"
 	"github.com/vmware/govmomi/vim25/soap"
@@ -28,6 +29,7 @@ var (
 	tomlConf      = &models.Config{}
 	configPath    = "./config.conf"
 	finder        = &find.Finder{}
+	datastore     = &object.Datastore{}
 )
 
 func init() {
@@ -74,19 +76,13 @@ func main() {
 
 	finder.SetDatacenter(dc)
 
-	//WebClone("source_rp", "07-02_Pods", "test_pg", "user", 69)
-	rpRef, err := GetResourcePool("00_Critical")
+	datastore, err = finder.Datastore(vSphereClient.ctx, tomlConf.Datastore)
 	if err != nil {
-		log.Fatalln(errors.Wrap(err, "Error getting resource pool"))
+		log.Fatalln(errors.Wrap(err, "Error finding datastore"))
 	}
-	temp, err := GetVMsInResourcePool(rpRef)
-	if err != nil {
-		log.Fatalln(errors.Wrap(err, "Error getting resource pool"))
-	}
+	fmt.Println("Datastore: ", datastore.Reference())
 
-	for _, vm := range temp {
-		fmt.Println(vm.Name)
-	}
+	WebClone("CPTC-Web", tomlConf.TargetResourcePool, "0040_RvBCoreNetwork", "edeters", 69)
 
 	/**
 

@@ -21,7 +21,13 @@ func CreateTag(name string) (tags.Tag, error) {
 
 	_, err := m.CreateTag(vSphereClient.ctx, &tag)
 	if err != nil {
-		log.Fatalln(errors.Wrap(err, "Error creating tag"))
+		log.Println(errors.Wrap(err, "Error creating tag"))
+		return tags.Tag{}, err
+	}
+
+	tag, err = GetTagByName(name)
+	if err != nil {
+		log.Println(errors.Wrap(err, "Error getting tag by name"))
 		return tags.Tag{}, err
 	}
 	return tag, nil
@@ -31,7 +37,7 @@ func GetTagByName(name string) (tags.Tag, error) {
 	m := tags.NewManager(vSphereClient.restClient)
 	tag, err := m.GetTag(vSphereClient.ctx, name)
 	if err != nil {
-		log.Fatalln(errors.Wrap(err, "Error getting tag by name"))
+		log.Println(errors.Wrap(err, "Error getting tag by name"))
 		return tags.Tag{}, err
 	}
 	return *tag, nil
@@ -58,13 +64,13 @@ func CreatePortGroup(name string, vlanID int32) (types.ManagedObjectReference, e
 
 	task, err := dvsObj.AddPortgroup(vSphereClient.ctx, []types.DVPortgroupConfigSpec{spec})
 	if err != nil {
-		log.Fatalln(errors.Wrap(err, "Error adding portgroup"))
+		log.Println(errors.Wrap(err, "Error adding portgroup"))
 		return types.ManagedObjectReference{}, err
 	}
 
 	err = task.Wait(vSphereClient.ctx)
 	if err != nil {
-		log.Fatalln(errors.Wrap(err, "Error waiting for task"))
+		log.Println(errors.Wrap(err, "Error waiting for task"))
 		return types.ManagedObjectReference{}, err
 	}
 
@@ -75,12 +81,12 @@ func CreatePortGroup(name string, vlanID int32) (types.ManagedObjectReference, e
 	return pgReference, nil
 }
 
-func AssignTagToObject(tag tags.Tag, entity types.ManagedObjectReference) error {
+func AssignTagToObject(tag tags.Tag, entity mo.Reference) error {
 	m := tags.NewManager(vSphereClient.restClient)
 
-	err := m.AttachTag(vSphereClient.ctx, tag.Name, entity)
+	err := m.AttachTag(vSphereClient.ctx, tag.ID, entity)
 	if err != nil {
-		log.Fatalln(errors.Wrap(err, "Error assigning tag"))
+		log.Println(errors.Wrap(err, "Error assigning tag"))
 		return err
 	}
 	return nil
@@ -122,7 +128,7 @@ func CreateVMFolder(name string) (types.ManagedObjectReference, error) {
 	return newFolder.Reference(), nil
 }
 
-func GetVMsInResourcePool(rp types.ManagedObjectReference) ([]mo.VirtualMachine, error) {
+func GetVMsInResourcePool(rp types.ManagedObjectReference) ([]*object.VirtualMachine, error) {
 	rpData := mo.ResourcePool{}
 	pc := property.DefaultCollector(vSphereClient.client)
 	err := pc.Retrieve(vSphereClient.ctx, []types.ManagedObjectReference{rp}, []string{"vm"}, &rpData)
@@ -138,5 +144,71 @@ func GetVMsInResourcePool(rp types.ManagedObjectReference) ([]mo.VirtualMachine,
 		return nil, err
 	}
 
-	return vms, nil
+	vmObjs := []*object.VirtualMachine{}
+
+	for _, vm := range vms {
+		vmObj := object.NewVirtualMachine(vSphereClient.client, vm.Reference())
+		vmObjs = append(vmObjs, vmObj)
+	}
+
+	return vmObjs, nil
+}
+
+func CreateSnapshot(vms []*object.VirtualMachine, name string) error {
+	for _, vm := range vms {
+		task, err := vm.CreateSnapshot(vSphereClient.ctx, name, "", false, false)
+		if err != nil {
+			log.Fatalln(errors.Wrap(err, "Failed to create snapshot"))
+			return err
+		}
+
+		err = task.Wait(vSphereClient.ctx)
+		if err != nil {
+			log.Fatalln(errors.Wrap(err, "Failed to wait for task"))
+			return err
+		}
+
+		log.Printf("Snapshot created for VM %s\n", vm.Name())
+	}
+
+	return nil
+}
+
+func GetSnapshot(vms []*object.VirtualMachine, name string) []*object.VirtualMachine {
+	var vmsWithoutSnapshot []*object.VirtualMachine
+	for _, vm := range vms {
+		_, err := vm.FindSnapshot(vSphereClient.ctx, name)
+		if err != nil {
+			log.Println(errors.Wrap(err, "Failed to find snapshot"))
+			vmsWithoutSnapshot = append(vmsWithoutSnapshot, vm)
+		}
+	}
+
+	return vmsWithoutSnapshot
+}
+
+func CloneVMs(vms []*object.VirtualMachine, folder, resourcePool, ds types.ManagedObjectReference) error {
+	for _, vm := range vms {
+		spec := types.VirtualMachineInstantCloneSpec{
+			Name: vm.Name() + "-clone",
+			Location: types.VirtualMachineRelocateSpec{
+				Datastore: &ds,
+				Pool:      &resourcePool,
+				Folder:    &folder,
+			},
+		}
+
+		task, err := vm.InstantClone(vSphereClient.ctx, spec)
+		if err != nil {
+			log.Println(errors.Wrap(err, "Failed to clone VM"))
+			return err
+		}
+
+		err = task.Wait(vSphereClient.ctx)
+		if err != nil {
+			log.Println(errors.Wrap(err, "Failed to wait for task"))
+			return err
+		}
+	}
+	return nil
 }
