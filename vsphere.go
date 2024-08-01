@@ -57,7 +57,7 @@ func vSphereLoadTakenPortGroups() error {
 		refs = append(refs, pgRef.Reference())
 	}
 
-	pc := property.DefaultCollector(vSphereClient.client.Client)
+	pc := property.DefaultCollector(vSphereClient.client)
 
 	// Collect property from references list
 	var pgs []mo.DistributedVirtualPortgroup
@@ -108,7 +108,7 @@ func vSphereGetPresetTemplates() ([]string, error) {
 		return nil, errors.Wrap(err, "Failed to find preset templates")
 	}
 
-	pc := property.DefaultCollector(vSphereClient.client.Client)
+	pc := property.DefaultCollector(vSphereClient.client)
 
 	var rps []mo.ResourcePool
 	err = pc.Retrieve(vSphereClient.ctx, trp.ResourcePool, []string{"name"}, &rps)
@@ -137,7 +137,7 @@ func vSphereGetCustomTemplates() ([]gin.H, error) {
 		return nil, errors.Wrap(err, "Failed to find template sub-folders")
 	}
 
-	pc := property.DefaultCollector(vSphereClient.client.Client)
+	pc := property.DefaultCollector(vSphereClient.client)
 
 	for _, subfolderRef := range templateSubfolderRefs {
 		var subfolder []mo.Folder
@@ -182,7 +182,7 @@ func vSphereGetPods(owner string) ([]models.Pod, error) {
 		refs = append(refs, podRef.Reference())
 	}
 
-	pc := property.DefaultCollector(vSphereClient.client.Client)
+	pc := property.DefaultCollector(vSphereClient.client)
 
 	var rps []mo.ResourcePool
 	err = pc.Retrieve(vSphereClient.ctx, refs, []string{"name", "config"}, &rps)
@@ -305,19 +305,61 @@ func vSphereCustomClone(podName string, vmsToClone []string, nat bool, username 
 
 	return nil
 }
-/**
+
 func WebClone(sourceRP, targetRP, wanPG, username string, portGroup int32) {
-    err := vSpherePodLimit(username)
-    if err != nil {
-        log.Println(err)
-        return
-    }
+	/**
+	err := vSpherePodLimit(username)
+	if err != nil {
+		log.Println(err)
+		return
+	}
+	*/
 
-    tag, err := CreateTag(string(portGroup) + sourceRP + "_" + username)
-    if err != nil {
-        log.Println(err)
-        return
-    }
+	strPortGroup := strconv.Itoa(int(portGroup))
+	pgName := strings.Join([]string{strPortGroup, tomlConf.PortGroupSuffix}, "_")
+	tagName := strings.Join([]string{strPortGroup, sourceRP, username}, "_")
 
-    err = CreatePortGroup(string(portGroup) + "_PodNetwork", portGroup)
-}*/
+	tag, err := CreateTag(tagName)
+	if err != nil {
+		log.Println(errors.Wrap(err, "Error creating tag"))
+	}
+
+	pgRef, err := CreatePortGroup(pgName, portGroup)
+	if err != nil {
+		log.Println(errors.Wrap(err, "Error creating portgroup"))
+	}
+
+	err = AssignTagToObject(tag, pgRef)
+	if err != nil {
+		log.Println(errors.Wrap(err, "Error assigning tag"))
+	}
+
+	newFolder, err := CreateVMFolder(tagName)
+	if err != nil {
+		log.Println(errors.Wrap(err, "Error creating VM folder"))
+	}
+
+	err = AssignTagToObject(tag, newFolder)
+	if err != nil {
+		log.Println(errors.Wrap(err, "Error assigning tag"))
+	}
+
+	rpRef, err := GetResourcePool(sourceRP)
+	tagsOnTmpl, err := GetTagsFromObject(rpRef)
+	if err != nil {
+		log.Println(errors.Wrap(err, "Error getting tags"))
+	}
+
+	natted := false
+	for _, tag := range tagsOnTmpl {
+		if tag.Name == "natted" {
+			natted = true
+			fmt.Println(natted)
+		}
+	}
+
+	vms, err := GetVMsInResourcePool(rpRef)
+	if err != nil {
+		log.Println(errors.Wrap(err, "Error getting VMs in resource pool"))
+	}
+}

@@ -11,19 +11,20 @@ import (
 	"github.com/vmware/govmomi"
 	"github.com/vmware/govmomi/find"
 	"github.com/vmware/govmomi/vapi/rest"
+	"github.com/vmware/govmomi/vim25"
 	"github.com/vmware/govmomi/vim25/soap"
 
 	"goclone/models"
 )
 
 type VSphereClient struct {
-    client *govmomi.Client
-    restClient *rest.Client
-    ctx context.Context
+	client     *vim25.Client
+	restClient *rest.Client
+	ctx        context.Context
 }
 
 var (
-    vSphereClient *VSphereClient
+	vSphereClient *VSphereClient
 	tomlConf      = &models.Config{}
 	configPath    = "./config.conf"
 	finder        = &find.Finder{}
@@ -44,24 +45,27 @@ func init() {
 	}
 
 	u.User = url.UserPassword(tomlConf.VCenterUsername, tomlConf.VCenterPassword)
-    ctx := context.Background()
-    client, err := govmomi.NewClient(ctx, u, true)
-    if err != nil {
-        log.Fatalln(errors.Wrap(err, "Error creating vSphere client"))
-    }
-
-    vSphereClient = &VSphereClient{
-        client: client,
-        restClient: rest.NewClient(client.Client),
-        ctx: context.Background(),
-    }
+	ctx := context.Background()
+	client, err := govmomi.NewClient(ctx, u, true)
 	if err != nil {
 		log.Fatalln(errors.Wrap(err, "Error creating vSphere client"))
+	}
+
+	rc := rest.NewClient(client.Client)
+	err = rc.Login(ctx, u.User)
+	if err != nil {
+		log.Fatalln(errors.Wrap(err, "Error creating REST client"))
+	}
+
+	vSphereClient = &VSphereClient{
+		client:     client.Client,
+		restClient: rc,
+		ctx:        context.Background(),
 	}
 }
 
 func main() {
-	finder = find.NewFinder(vSphereClient.client.Client, true)
+	finder = find.NewFinder(vSphereClient.client, true)
 
 	dc, err := finder.Datacenter(vSphereClient.ctx, tomlConf.Datacenter)
 	if err != nil {
@@ -70,22 +74,21 @@ func main() {
 
 	finder.SetDatacenter(dc)
 
-    ds, err := finder.DatastoreList(vSphereClient.ctx, "*")
-    if err != nil {
-        log.Fatalln(errors.Wrap(err, "Error finding default datastore"))
-    }
-    fmt.Println("Default datastore", ds)
+	//WebClone("source_rp", "07-02_Pods", "test_pg", "user", 69)
+	rpRef, err := GetResourcePool("00_Critical")
+	if err != nil {
+		log.Fatalln(errors.Wrap(err, "Error getting resource pool"))
+	}
+	temp, err := GetVMsInResourcePool(rpRef)
+	if err != nil {
+		log.Fatalln(errors.Wrap(err, "Error getting resource pool"))
+	}
 
-    fmt.Println("Logged in to vSphere REST API", vSphereClient.restClient)
+	for _, vm := range temp {
+		fmt.Println(vm.Name)
+	}
 
-    tag, err := CreateTag("test_tag")
-    if err != nil {
-        log.Fatalln(errors.Wrap(err, "Error creating tag"))
-    }
-    CreatePortGroup("test_port", 69)
-    AssignTagToPortGroup(tag, "test_port")
-
-    /**
+	/**
 
 	// call before go routine to ensure it finishes before starting router
 	err = vSphereLoadTakenPortGroups()
@@ -126,7 +129,7 @@ func main() {
 	} else {
 		log.Fatalln(router.Run(":" + fmt.Sprint(tomlConf.Port)))
 	}
-    */
+	*/
 }
 
 func CORSMiddleware() gin.HandlerFunc {
