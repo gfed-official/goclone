@@ -329,8 +329,6 @@ func WebClone(sourceRP, targetRP, wanPG, username string, portGroup int32) {
 		log.Println(errors.Wrap(err, "Error creating portgroup"))
 	}
 
-	time.Sleep(5 * time.Second)
-
 	err = AssignTagToObject(tag, pgRef)
 	if err != nil {
 		log.Println(errors.Wrap(err, "Error assigning tag"))
@@ -346,8 +344,17 @@ func WebClone(sourceRP, targetRP, wanPG, username string, portGroup int32) {
 		log.Println(errors.Wrap(err, "Error assigning tag"))
 	}
 
-	rpRef, err := GetResourcePool(sourceRP)
-	tagsOnTmpl, err := GetTagsFromObject(rpRef)
+	srcRpRef, err := GetResourcePool(sourceRP)
+    if err != nil {
+        log.Println(errors.Wrap(err, "Error getting resource pool"))
+    }
+
+    dstRpRef, err := GetResourcePool(targetRP)
+    if err != nil {
+        log.Println(errors.Wrap(err, "Error getting resource pool"))
+    }
+
+	tagsOnTmpl, err := GetTagsFromObject(srcRpRef)
 	if err != nil {
 		log.Println(errors.Wrap(err, "Error getting tags"))
 	}
@@ -360,7 +367,7 @@ func WebClone(sourceRP, targetRP, wanPG, username string, portGroup int32) {
 		}
 	}
 
-	vms, err := GetVMsInResourcePool(rpRef)
+	vms, err := GetVMsInResourcePool(srcRpRef)
 	if err != nil {
 		log.Println(errors.Wrap(err, "Error getting VMs in resource pool"))
 	}
@@ -373,9 +380,14 @@ func WebClone(sourceRP, targetRP, wanPG, username string, portGroup int32) {
 		fmt.Println("Snapshot created", vmsWithoutSnapshot)
 	}
 
-	fmt.Println("Cloning VMs: ", vms)
-	err = CloneVMs(vms, newFolder, pgRef, datastore.Reference())
-	if err != nil {
-		log.Println(errors.Wrap(err, "Error cloning VMs"))
-	}
+	CloneVMs(vms, newFolder, dstRpRef, datastore.Reference())
+
+    clonedVMs, err := GetVMsInResourcePool(dstRpRef)
+    if err != nil {
+        log.Println(errors.Wrap(err, "Error getting VMs in resource pool"))
+    }
+
+    for _, vm := range clonedVMs {
+        ConfigureVMNetwork(vm, pgRef.Reference(), pgName)
+    }
 }

@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"net/url"
 
@@ -13,6 +12,7 @@ import (
 	"github.com/vmware/govmomi/object"
 	"github.com/vmware/govmomi/vapi/rest"
 	"github.com/vmware/govmomi/vim25"
+	"github.com/vmware/govmomi/vim25/mo"
 	"github.com/vmware/govmomi/vim25/soap"
 
 	"goclone/models"
@@ -30,6 +30,7 @@ var (
 	configPath    = "./config.conf"
 	finder        = &find.Finder{}
 	datastore     = &object.Datastore{}
+    dvsMo           mo.DistributedVirtualSwitch
 )
 
 func init() {
@@ -80,7 +81,17 @@ func main() {
 	if err != nil {
 		log.Fatalln(errors.Wrap(err, "Error finding datastore"))
 	}
-	fmt.Println("Datastore: ", datastore.Reference())
+
+    dswitch, err := finder.Network(vSphereClient.ctx, tomlConf.MainDistributedSwitch)
+    if err != nil {
+        log.Fatalln(errors.Wrap(err, "Error finding distributed switch"))
+    }
+
+    dvs := object.NewDistributedVirtualSwitch(vSphereClient.client, dswitch.Reference())
+    err = dvs.Properties(vSphereClient.ctx, dvs.Reference(), []string{"uuid"}, &dvsMo)
+    if err != nil {
+        log.Fatalln(errors.Wrap(err, "Error getting distributed switch properties"))
+    }
 
 	WebClone("CPTC-Web", tomlConf.TargetResourcePool, "0040_RvBCoreNetwork", "edeters", 69)
 

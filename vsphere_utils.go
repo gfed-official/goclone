@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"sync"
 
 	"github.com/pkg/errors"
 	"github.com/vmware/govmomi/object"
@@ -43,11 +44,11 @@ func GetTagByName(name string) (tags.Tag, error) {
 	return *tag, nil
 }
 
-func CreatePortGroup(name string, vlanID int32) (types.ManagedObjectReference, error) {
+func CreatePortGroup(name string, vlanID int32) (object.NetworkReference, error) {
 	dvs, err := finder.Network(vSphereClient.ctx, tomlConf.MainDistributedSwitch)
 	if err != nil {
 		log.Fatalln(errors.Wrap(err, "Error finding distributed switch"))
-		return types.ManagedObjectReference{}, err
+        return object.Network{}, err
 	}
 
 	dvsObj := dvs.(*object.DistributedVirtualSwitch)
@@ -65,19 +66,21 @@ func CreatePortGroup(name string, vlanID int32) (types.ManagedObjectReference, e
 	task, err := dvsObj.AddPortgroup(vSphereClient.ctx, []types.DVPortgroupConfigSpec{spec})
 	if err != nil {
 		log.Println(errors.Wrap(err, "Error adding portgroup"))
-		return types.ManagedObjectReference{}, err
+        return object.Network{}, err
 	}
 
 	err = task.Wait(vSphereClient.ctx)
 	if err != nil {
 		log.Println(errors.Wrap(err, "Error waiting for task"))
-		return types.ManagedObjectReference{}, err
+        return object.Network{}, err
 	}
 
-	pgReference := types.ManagedObjectReference{
-		Type:  "DistributedVirtualPortgroup",
-		Value: name,
-	}
+    pgReference, err := finder.Network(vSphereClient.ctx, name)
+    if err != nil {
+        log.Println(errors.Wrap(err, "Error finding portgroup"))
+        return object.Network{}, err
+    }
+
 	return pgReference, nil
 }
 
@@ -128,7 +131,7 @@ func CreateVMFolder(name string) (types.ManagedObjectReference, error) {
 	return newFolder.Reference(), nil
 }
 
-func GetVMsInResourcePool(rp types.ManagedObjectReference) ([]*object.VirtualMachine, error) {
+func GetVMsInResourcePool(rp types.ManagedObjectReference) ([]mo.VirtualMachine, error) {
 	rpData := mo.ResourcePool{}
 	pc := property.DefaultCollector(vSphereClient.client)
 	err := pc.Retrieve(vSphereClient.ctx, []types.ManagedObjectReference{rp}, []string{"vm"}, &rpData)
@@ -144,14 +147,7 @@ func GetVMsInResourcePool(rp types.ManagedObjectReference) ([]*object.VirtualMac
 		return nil, err
 	}
 
-	vmObjs := []*object.VirtualMachine{}
-
-	for _, vm := range vms {
-		vmObj := object.NewVirtualMachine(vSphereClient.client, vm.Reference())
-		vmObjs = append(vmObjs, vmObj)
-	}
-
-	return vmObjs, nil
+	return vms, nil
 }
 
 func CreateSnapshot(vms []*object.VirtualMachine, name string) error {
@@ -174,41 +170,93 @@ func CreateSnapshot(vms []*object.VirtualMachine, name string) error {
 	return nil
 }
 
-func GetSnapshot(vms []*object.VirtualMachine, name string) []*object.VirtualMachine {
+func GetSnapshot(vms []mo.VirtualMachine, name string) []*object.VirtualMachine {
 	var vmsWithoutSnapshot []*object.VirtualMachine
 	for _, vm := range vms {
-		_, err := vm.FindSnapshot(vSphereClient.ctx, name)
+        vmObj := object.NewVirtualMachine(vSphereClient.client, vm.Reference())
+		_, err := vmObj.FindSnapshot(vSphereClient.ctx, name)
 		if err != nil {
 			log.Println(errors.Wrap(err, "Failed to find snapshot"))
-			vmsWithoutSnapshot = append(vmsWithoutSnapshot, vm)
+			vmsWithoutSnapshot = append(vmsWithoutSnapshot, vmObj)
 		}
 	}
 
 	return vmsWithoutSnapshot
 }
 
-func CloneVMs(vms []*object.VirtualMachine, folder, resourcePool, ds types.ManagedObjectReference) error {
+func GetSnapshotRef(vm mo.VirtualMachine, name string) types.ManagedObjectReference {
+    vmObj := object.NewVirtualMachine(vSphereClient.client, vm.Reference())
+    snapshot, err := vmObj.FindSnapshot(vSphereClient.ctx, name)
+    if err != nil {
+        log.Println(errors.Wrap(err, "Failed to find snapshot"))
+        return types.ManagedObjectReference{}
+    }
+
+    return snapshot.Reference()
+}
+
+func CloneVMs(vms []mo.VirtualMachine, folder, resourcePool, ds types.ManagedObjectReference) {
+    var wg sync.WaitGroup
 	for _, vm := range vms {
-		spec := types.VirtualMachineInstantCloneSpec{
-			Name: vm.Name() + "-clone",
+        snapshotRef := GetSnapshotRef(vm, "SnapshotForCloning")
+		spec := types.VirtualMachineCloneSpec{
+            Snapshot: &snapshotRef,
 			Location: types.VirtualMachineRelocateSpec{
+                DiskMoveType: string(types.VirtualMachineRelocateDiskMoveOptionsCreateNewChildDiskBacking),
 				Datastore: &ds,
 				Pool:      &resourcePool,
-				Folder:    &folder,
 			},
 		}
+        folderObj := object.NewFolder(vSphereClient.client, folder)
+        wg.Add(1)
+        go CloneVM(&wg, vm, *folderObj, spec)
+    }
+    wg.Wait()
+}
 
-		task, err := vm.InstantClone(vSphereClient.ctx, spec)
-		if err != nil {
-			log.Println(errors.Wrap(err, "Failed to clone VM"))
-			return err
-		}
+func CloneVM(wg *sync.WaitGroup, vm mo.VirtualMachine, folder object.Folder, spec types.VirtualMachineCloneSpec) {
+    defer wg.Done()
 
-		err = task.Wait(vSphereClient.ctx)
-		if err != nil {
-			log.Println(errors.Wrap(err, "Failed to wait for task"))
-			return err
-		}
-	}
-	return nil
+    vmObj := object.NewVirtualMachine(vSphereClient.client, vm.Reference())
+    task, err := vmObj.Clone(vSphereClient.ctx, &folder, vm.Name, spec)
+    if err != nil {
+        log.Println(errors.Wrap(err, "Failed to clone VM"))
+    }
+
+    err = task.Wait(vSphereClient.ctx)
+    if err != nil {
+        log.Println(errors.Wrap(err, "Failed to wait for task"))
+    }
+}
+
+func ConfigureVMNetwork(vm mo.VirtualMachine, network types.ManagedObjectReference, name string) {
+    vmObj := object.NewVirtualMachine(vSphereClient.client, vm.Reference())
+    devices, err := vmObj.Device(vSphereClient.ctx)
+    if err != nil {
+        log.Println(errors.Wrap(err, "Failed to get devices"))
+    }
+    for _, device := range devices {
+        if device.GetVirtualDevice().DeviceInfo.GetDescription().Label == "Network adapter 1" {
+            device.(*types.VirtualVmxnet3).Backing = &types.VirtualEthernetCardDistributedVirtualPortBackingInfo{
+                Port: types.DistributedVirtualSwitchPortConnection{
+                    PortgroupKey: network.Reference().Value,
+                    SwitchUuid:   dvsMo.Uuid,
+                },
+            }
+
+            configSpec := types.VirtualMachineConfigSpec{
+                DeviceChange: []types.BaseVirtualDeviceConfigSpec{
+                    &types.VirtualDeviceConfigSpec{
+                        Operation: types.VirtualDeviceConfigSpecOperationEdit,
+                        Device:    device,
+                    },
+                },
+            }
+
+            _, err := vmObj.Reconfigure(vSphereClient.ctx, configSpec)
+            if err != nil {
+                log.Println(errors.Wrap(err, "Failed to reconfigure VM"))
+            }
+        }
+    }
 }
