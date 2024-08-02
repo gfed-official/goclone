@@ -6,6 +6,7 @@ import (
 	"log"
 	"os/exec"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -345,14 +346,14 @@ func WebClone(sourceRP, targetRP, wanPG, username string, portGroup int32) {
 	}
 
 	srcRpRef, err := GetResourcePool(sourceRP)
-    if err != nil {
-        log.Println(errors.Wrap(err, "Error getting resource pool"))
-    }
+	if err != nil {
+		log.Println(errors.Wrap(err, "Error getting resource pool"))
+	}
 
-    dstRpRef, err := GetResourcePool(targetRP)
-    if err != nil {
-        log.Println(errors.Wrap(err, "Error getting resource pool"))
-    }
+	dstRpRef, err := GetResourcePool(targetRP)
+	if err != nil {
+		log.Println(errors.Wrap(err, "Error getting resource pool"))
+	}
 
 	tagsOnTmpl, err := GetTagsFromObject(srcRpRef)
 	if err != nil {
@@ -363,13 +364,18 @@ func WebClone(sourceRP, targetRP, wanPG, username string, portGroup int32) {
 	for _, tag := range tagsOnTmpl {
 		if tag.Name == "natted" {
 			natted = true
-			fmt.Println(natted)
 		}
 	}
 
 	vms, err := GetVMsInResourcePool(srcRpRef)
 	if err != nil {
 		log.Println(errors.Wrap(err, "Error getting VMs in resource pool"))
+	}
+
+	if !slices.ContainsFunc(vms, func(vm mo.VirtualMachine) bool {
+		return strings.Contains(vm.Name, "PodRouter")
+	}) {
+		err = CreateRouter(srcRpRef, pgRef.Reference(), wanPG, natted)
 	}
 
 	if vmsWithoutSnapshot := GetSnapshot(vms, "SnapshotForCloning"); vmsWithoutSnapshot != nil {
@@ -380,14 +386,5 @@ func WebClone(sourceRP, targetRP, wanPG, username string, portGroup int32) {
 		fmt.Println("Snapshot created", vmsWithoutSnapshot)
 	}
 
-	CloneVMs(vms, newFolder, dstRpRef, datastore.Reference())
-
-    clonedVMs, err := GetVMsInResourcePool(dstRpRef)
-    if err != nil {
-        log.Println(errors.Wrap(err, "Error getting VMs in resource pool"))
-    }
-
-    for _, vm := range clonedVMs {
-        ConfigureVMNetwork(vm, pgRef.Reference(), pgName)
-    }
+	CloneVMs(vms, newFolder, dstRpRef, datastore.Reference(), pgRef.Reference())
 }
