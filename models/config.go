@@ -35,6 +35,8 @@ type Config struct {
 	DomainName                 string
 	TemplateFolder             string
 	PortGroupSuffix            string
+    NattedRouterPath           string
+    RouterPath                 string
 }
 
 /*

@@ -14,6 +14,7 @@ import (
 	"github.com/vmware/govmomi/vim25"
 	"github.com/vmware/govmomi/vim25/mo"
 	"github.com/vmware/govmomi/vim25/soap"
+	"github.com/vmware/govmomi/vim25/types"
 
 	"goclone/models"
 )
@@ -31,6 +32,8 @@ var (
 	finder        = &find.Finder{}
 	datastore     = &object.Datastore{}
     dvsMo           mo.DistributedVirtualSwitch
+    templateFolder  *object.Folder
+    templateFolderRef types.ManagedObjectReference
 )
 
 func init() {
@@ -93,7 +96,10 @@ func main() {
         log.Fatalln(errors.Wrap(err, "Error getting distributed switch properties"))
     }
 
-	WebClone("CPTC-Web", tomlConf.TargetResourcePool, "0040_RvBCoreNetwork", "edeters", 69)
+    templateFolder, err = finder.Folder(vSphereClient.ctx, tomlConf.TemplateFolder)
+    templateFolderRef = templateFolder.Reference()
+
+	WebClone("Evan-Test", tomlConf.TargetResourcePool, "0040_RvBCoreNetwork", "edeters", 69)
 
 	/**
 

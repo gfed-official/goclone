@@ -316,6 +316,8 @@ func WebClone(sourceRP, targetRP, wanPG, username string, portGroup int32) {
 	}
 	*/
 
+    wanPGRef, err := GetPortGroup(wanPG)
+
 	strPortGroup := strconv.Itoa(int(portGroup))
 	pgName := strings.Join([]string{strPortGroup, tomlConf.PortGroupSuffix}, "_")
 	tagName := strings.Join([]string{strPortGroup, sourceRP, username}, "_")
@@ -335,7 +337,7 @@ func WebClone(sourceRP, targetRP, wanPG, username string, portGroup int32) {
 		log.Println(errors.Wrap(err, "Error assigning tag"))
 	}
 
-	newFolder, err := CreateVMFolder(tagName)
+	newFolder, newFolderObj, err := CreateVMFolder(tagName)
 	if err != nil {
 		log.Println(errors.Wrap(err, "Error creating VM folder"))
 	}
@@ -372,11 +374,14 @@ func WebClone(sourceRP, targetRP, wanPG, username string, portGroup int32) {
 		log.Println(errors.Wrap(err, "Error getting VMs in resource pool"))
 	}
 
+    var router *mo.VirtualMachine
 	if !slices.ContainsFunc(vms, func(vm mo.VirtualMachine) bool {
 		return strings.Contains(vm.Name, "PodRouter")
 	}) {
-		err = CreateRouter(srcRpRef, pgRef.Reference(), wanPG, natted)
+		router, err = CreateRouter(srcRpRef, datastore.Reference(), templateFolder, natted)
 	}
+
+    vms = append(vms, *router)
 
 	if vmsWithoutSnapshot := GetSnapshot(vms, "SnapshotForCloning"); vmsWithoutSnapshot != nil {
 		err = CreateSnapshot(vmsWithoutSnapshot, "SnapshotForCloning")
@@ -386,5 +391,9 @@ func WebClone(sourceRP, targetRP, wanPG, username string, portGroup int32) {
 		fmt.Println("Snapshot created", vmsWithoutSnapshot)
 	}
 
+    err = CloneRouter(dstRpRef, pgRef.Reference(), wanPGRef.Reference(), datastore.Reference(), newFolderObj, router)
+    if err != nil {
+        log.Println(errors.Wrap(err, "Error cloning router"))
+    }
 	CloneVMs(vms, newFolder, dstRpRef, datastore.Reference(), pgRef.Reference())
 }
