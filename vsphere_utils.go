@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	"sync"
 
@@ -14,14 +13,13 @@ import (
 )
 
 func CreateTag(name string) (tags.Tag, error) {
-	m := tags.NewManager(vSphereClient.restClient)
 	tag := tags.Tag{
 		Name:        name,
 		Description: "Tag created by Kamino",
 		CategoryID:  "CloneOnDemand",
 	}
 
-	_, err := m.CreateTag(vSphereClient.ctx, &tag)
+	_, err := tagManager.CreateTag(vSphereClient.ctx, &tag)
 	if err != nil {
 		log.Println(errors.Wrap(err, "Error creating tag"))
 		return tags.Tag{}, err
@@ -36,8 +34,7 @@ func CreateTag(name string) (tags.Tag, error) {
 }
 
 func GetTagByName(name string) (tags.Tag, error) {
-	m := tags.NewManager(vSphereClient.restClient)
-	tag, err := m.GetTag(vSphereClient.ctx, name)
+	tag, err := tagManager.GetTag(vSphereClient.ctx, name)
 	if err != nil {
 		log.Println(errors.Wrap(err, "Error getting tag by name"))
 		return tags.Tag{}, err
@@ -46,13 +43,7 @@ func GetTagByName(name string) (tags.Tag, error) {
 }
 
 func CreatePortGroup(name string, vlanID int32) (object.NetworkReference, error) {
-	dvs, err := finder.Network(vSphereClient.ctx, tomlConf.MainDistributedSwitch)
-	if err != nil {
-		log.Fatalln(errors.Wrap(err, "Error finding distributed switch"))
-		return object.Network{}, err
-	}
-
-	dvsObj := dvs.(*object.DistributedVirtualSwitch)
+	dvsObj := object.NewDistributedVirtualSwitch(vSphereClient.client, dvsMo.Reference())
 	spec := types.DVPortgroupConfigSpec{
 		Name:     name,
 		Type:     string(types.DistributedVirtualPortgroupPortgroupTypeEarlyBinding),
@@ -86,19 +77,17 @@ func CreatePortGroup(name string, vlanID int32) (object.NetworkReference, error)
 }
 
 func GetPortGroup(name string) (object.NetworkReference, error) {
-    pg, err := finder.Network(vSphereClient.ctx, name)
-    if err != nil {
-        log.Println(errors.Wrap(err, "Error finding portgroup"))
-        return object.Network{}, err
-    }
+	pg, err := finder.Network(vSphereClient.ctx, name)
+	if err != nil {
+		log.Println(errors.Wrap(err, "Error finding portgroup"))
+		return object.Network{}, err
+	}
 
-    return pg, nil
+	return pg, nil
 }
 
 func AssignTagToObject(tag tags.Tag, entity mo.Reference) error {
-	m := tags.NewManager(vSphereClient.restClient)
-
-	err := m.AttachTag(vSphereClient.ctx, tag.ID, entity)
+	err := tagManager.AttachTag(vSphereClient.ctx, tag.ID, entity)
 	if err != nil {
 		log.Println(errors.Wrap(err, "Error assigning tag"))
 		return err
@@ -107,39 +96,70 @@ func AssignTagToObject(tag tags.Tag, entity mo.Reference) error {
 }
 
 func GetTagsFromObject(entity types.ManagedObjectReference) ([]tags.Tag, error) {
-	m := tags.NewManager(vSphereClient.restClient)
-
-	tagList, err := m.GetAttachedTags(vSphereClient.ctx, entity)
+	tagList, err := tagManager.GetAttachedTags(vSphereClient.ctx, entity)
 	if err != nil {
-		log.Fatalln(errors.Wrap(err, "Error getting attached objects from tags"))
+		log.Println(errors.Wrap(err, "Error getting attached objects from tags"))
 		return []tags.Tag{}, err
 	}
 
 	return tagList, nil
 }
 
+func CreateResourcePool(name string) (types.ManagedObjectReference, error) {
+	rpSpec := types.ResourceConfigSpec{
+		CpuAllocation: types.ResourceAllocationInfo{
+			Shares:                &types.SharesInfo{Level: types.SharesLevelNormal},
+			Reservation:           types.NewInt64(0),
+			Limit:                 types.NewInt64(-1),
+			ExpandableReservation: types.NewBool(true),
+		},
+		MemoryAllocation: types.ResourceAllocationInfo{
+			Shares:                &types.SharesInfo{Level: types.SharesLevelNormal},
+			Reservation:           types.NewInt64(0),
+			Limit:                 types.NewInt64(-1),
+			ExpandableReservation: types.NewBool(true),
+		},
+	}
+
+	rp, err := finder.ResourcePool(vSphereClient.ctx, name)
+	if err == nil {
+		log.Println("Resource pool already exists")
+		return rp.Reference(), nil
+	}
+
+	child, err := targetResourcePool.Create(vSphereClient.ctx, name, rpSpec)
+	if err != nil {
+		log.Println(errors.Wrap(err, "Error creating resource pool"))
+	}
+
+	tag, err := tagManager.GetTag(vSphereClient.ctx, name)
+	err = AssignTagToObject(*tag, child.Reference())
+
+	return child.Reference(), nil
+}
+
 func GetResourcePool(name string) (types.ManagedObjectReference, error) {
 	rpRef, err := finder.ResourcePool(vSphereClient.ctx, name)
 	if err != nil {
-		log.Fatalln(errors.Wrap(err, "Error getting resource pool"))
+		log.Println(errors.Wrap(err, "Error getting resource pool"))
 		return types.ManagedObjectReference{}, err
 	}
 
 	return rpRef.Reference(), nil
 }
 
-func CreateVMFolder(name string) (types.ManagedObjectReference, *object.Folder, error) {
+func CreateVMFolder(name string) (types.ManagedObjectReference, error) {
 	vmFolder, err := finder.Folder(vSphereClient.ctx, "vm")
 	if err != nil {
-		log.Fatalln(errors.Wrap(err, "Cannot find vm folder"))
+		log.Println(errors.Wrap(err, "Cannot find vm folder"))
 	}
 
 	newFolder, err := vmFolder.CreateFolder(vSphereClient.ctx, name)
 	if err != nil {
-		log.Fatalln(errors.Wrap(err, "Failed to create folder"))
+		log.Println(errors.Wrap(err, "Failed to create folder"))
 	}
 
-	return newFolder.Reference(), newFolder, nil
+	return newFolder.Reference(), nil
 }
 
 func GetVMsInResourcePool(rp types.ManagedObjectReference) ([]mo.VirtualMachine, error) {
@@ -147,14 +167,14 @@ func GetVMsInResourcePool(rp types.ManagedObjectReference) ([]mo.VirtualMachine,
 	pc := property.DefaultCollector(vSphereClient.client)
 	err := pc.Retrieve(vSphereClient.ctx, []types.ManagedObjectReference{rp}, []string{"vm"}, &rpData)
 	if err != nil {
-		log.Fatalln(errors.Wrap(err, "Failed to retrieve VMs from resource pool"))
+		log.Println(errors.Wrap(err, "Failed to retrieve VMs from resource pool"))
 		return nil, err
 	}
 
 	var vms []mo.VirtualMachine
 	err = pc.Retrieve(vSphereClient.ctx, rpData.Vm, []string{"name"}, &vms)
 	if err != nil {
-		log.Fatalln(errors.Wrap(err, "Failed to get references for Virtual Machines"))
+		log.Println(errors.Wrap(err, "Failed to get references for Virtual Machines"))
 		return nil, err
 	}
 
@@ -165,13 +185,13 @@ func CreateSnapshot(vms []*object.VirtualMachine, name string) error {
 	for _, vm := range vms {
 		task, err := vm.CreateSnapshot(vSphereClient.ctx, name, "", false, false)
 		if err != nil {
-			log.Fatalln(errors.Wrap(err, "Failed to create snapshot"))
+			log.Println(errors.Wrap(err, "Failed to create snapshot"))
 			return err
 		}
 
 		err = task.Wait(vSphereClient.ctx)
 		if err != nil {
-			log.Fatalln(errors.Wrap(err, "Failed to wait for task"))
+			log.Println(errors.Wrap(err, "Failed to wait for task"))
 			return err
 		}
 
@@ -279,126 +299,194 @@ func ConfigureVMNetwork(vmObj *object.VirtualMachine, network types.ManagedObjec
 }
 
 func CreateRouter(srcRP, ds types.ManagedObjectReference, folder *object.Folder, natted bool) (*mo.VirtualMachine, error) {
-    var templateName, cloneName string
-    if natted {
-        templateName = tomlConf.NattedRouterPath
-        cloneName = "NattedRouter"
-    } else {
-        templateName = tomlConf.RouterPath
-        cloneName = "Router"
-    }
+	var templateName, cloneName string
+	if natted {
+		templateName = tomlConf.NattedRouterPath
+		cloneName = "Natted-PodRouter"
+	} else {
+		templateName = tomlConf.RouterPath
+		cloneName = "PodRouter"
+	}
 
-    template, err := finder.VirtualMachine(vSphereClient.ctx, templateName)
-    if err != nil {
-        log.Println(errors.Wrap(err, "Error finding template"))
-        return &mo.VirtualMachine{}, err
-    }
+	template, err := finder.VirtualMachine(vSphereClient.ctx, templateName)
+	if err != nil {
+		log.Println(errors.Wrap(err, "Error finding template"))
+		return &mo.VirtualMachine{}, err
+	}
 
-    cloneSpec := types.VirtualMachineCloneSpec{
-        Location: types.VirtualMachineRelocateSpec{
-            Datastore:    &ds,
-            Pool:         &srcRP,
-        },
-    }
+	cloneSpec := types.VirtualMachineCloneSpec{
+		Location: types.VirtualMachineRelocateSpec{
+			Datastore: &ds,
+			Pool:      &srcRP,
+		},
+	}
 
-    task, err := template.Clone(vSphereClient.ctx, folder, cloneName, cloneSpec)
-    if err != nil {
-        log.Println(errors.Wrap(err, "Error cloning template"))
-        return &mo.VirtualMachine{}, err
-    }
+	task, err := template.Clone(vSphereClient.ctx, folder, cloneName, cloneSpec)
+	if err != nil {
+		log.Println(errors.Wrap(err, "Error cloning template"))
+		return &mo.VirtualMachine{}, err
+	}
 
-    err = task.Wait(vSphereClient.ctx)
-    if err != nil {
-        log.Println(errors.Wrap(err, "Error waiting for task"))
-        return &mo.VirtualMachine{}, err
-    }
+	err = task.Wait(vSphereClient.ctx)
+	if err != nil {
+		log.Println(errors.Wrap(err, "Error waiting for task"))
+		return &mo.VirtualMachine{}, err
+	}
 
-    routerObj, err := finder.VirtualMachine(vSphereClient.ctx, cloneName)
-    if err != nil {
-        log.Println(errors.Wrap(err, "Error finding router"))
-        return &mo.VirtualMachine{}, err
-    }
+	routerObj, err := finder.VirtualMachine(vSphereClient.ctx, cloneName)
+	if err != nil {
+		log.Println(errors.Wrap(err, "Error finding router"))
+		return &mo.VirtualMachine{}, err
+	}
 
-    routerMo := mo.VirtualMachine{}
-    pc := property.DefaultCollector(vSphereClient.client)
-    err = pc.Retrieve(vSphereClient.ctx, []types.ManagedObjectReference{routerObj.Reference()}, []string{"name"}, &routerMo)
-    if err != nil {
-        log.Println(errors.Wrap(err, "Error retrieving router"))
-        return &mo.VirtualMachine{}, err
-    }
+	routerMo := mo.VirtualMachine{}
+	pc := property.DefaultCollector(vSphereClient.client)
+	err = pc.Retrieve(vSphereClient.ctx, []types.ManagedObjectReference{routerObj.Reference()}, []string{"name"}, &routerMo)
+	if err != nil {
+		log.Println(errors.Wrap(err, "Error retrieving router"))
+		return &mo.VirtualMachine{}, err
+	}
 
-    return &routerMo, nil
+	return &routerMo, nil
 }
 
-func CloneRouter(dstRP, pg, wanPG, ds types.ManagedObjectReference, folder *object.Folder, template *mo.VirtualMachine) error {
-    templateObj := object.NewVirtualMachine(vSphereClient.client, template.Reference())
-    devices, err := templateObj.Device(vSphereClient.ctx)
-    if err != nil {
-        log.Println(errors.Wrap(err, "Error getting devices"))
-        return err
-    }
+func GetRouter(srcRPRef types.ManagedObjectReference) (*mo.VirtualMachine, error) {
+	router, err := finder.VirtualMachine(vSphereClient.ctx, "PodRouter")
+	if err != nil {
+		log.Println(errors.Wrap(err, "Error finding router"))
+		return &mo.VirtualMachine{}, err
+	}
 
-    var deviceList []types.BaseVirtualDeviceConfigSpec
-    for _, device := range devices {
-        if device.GetVirtualDevice().DeviceInfo.GetDescription().Label == "Network adapter 1" {
-            device.GetVirtualDevice().Backing = &types.VirtualEthernetCardDistributedVirtualPortBackingInfo{
-                Port: types.DistributedVirtualSwitchPortConnection{
-                    PortgroupKey: wanPG.Reference().Value,
-                    SwitchUuid:   dvsMo.Uuid,
-                },
-            }
-            deviceChange := types.VirtualDeviceConfigSpec{
-                Operation: types.VirtualDeviceConfigSpecOperationEdit,
-                Device:    device,
-            }
-            deviceList = append(deviceList, &deviceChange)
-        }
-        if device.GetVirtualDevice().DeviceInfo.GetDescription().Label == "Network adapter 2" {
-            device.GetVirtualDevice().Backing = &types.VirtualEthernetCardDistributedVirtualPortBackingInfo{
-                Port: types.DistributedVirtualSwitchPortConnection{
-                    PortgroupKey: pg.Reference().Value,
-                    SwitchUuid:   dvsMo.Uuid,
-                },
-            }
-            deviceChange := types.VirtualDeviceConfigSpec{
-                Operation: types.VirtualDeviceConfigSpecOperationEdit,
-                Device:    device,
-            }
-            deviceList = append(deviceList, &deviceChange)
-        }
-    }
- 
-    for d := range deviceList {
-        fmt.Println(deviceList[d])
-    }
+	routerMo := mo.VirtualMachine{}
+	pc := property.DefaultCollector(vSphereClient.client)
+	err = pc.Retrieve(vSphereClient.ctx, []types.ManagedObjectReference{router.Reference()}, []string{"name"}, &routerMo)
+	if err != nil {
+		log.Println(errors.Wrap(err, "Error retrieving router"))
+		return &mo.VirtualMachine{}, err
+	}
 
-    configSpec := types.VirtualMachineConfigSpec{
-        DeviceChange: deviceList,
-    }
+	return &routerMo, nil
+}
 
-    templateMo := mo.VirtualMachine{}
-    pc := property.DefaultCollector(vSphereClient.client)
-    err = pc.Retrieve(vSphereClient.ctx, []types.ManagedObjectReference{template.Reference()}, []string{"name"}, &templateMo)
-    if err != nil {
-        log.Println(errors.Wrap(err, "Error retrieving template"))
-        return err
-    }
+func ConfigRouter(pg, wanPG types.ManagedObjectReference, router *mo.VirtualMachine) error {
+	templateObj := object.NewVirtualMachine(vSphereClient.client, router.Reference())
+	devices, err := templateObj.Device(vSphereClient.ctx)
+	if err != nil {
+		log.Println(errors.Wrap(err, "Error getting devices"))
+		return err
+	}
 
-    snapshotRef := GetSnapshotRef(templateMo, "SnapshotForCloning")
-    cloneSpec := types.VirtualMachineCloneSpec{
-        Snapshot: &snapshotRef,
-        Location: types.VirtualMachineRelocateSpec{
-            DiskMoveType: string(types.VirtualMachineRelocateDiskMoveOptionsCreateNewChildDiskBacking),
-            Datastore:    &ds,
-            Pool:         &dstRP,
-        },
-        Config: &configSpec,
-    }
+	var deviceList []types.BaseVirtualDeviceConfigSpec
+	for _, device := range devices {
+		if device.GetVirtualDevice().DeviceInfo.GetDescription().Label == "Network adapter 1" {
+			device.GetVirtualDevice().Backing = &types.VirtualEthernetCardDistributedVirtualPortBackingInfo{
+				Port: types.DistributedVirtualSwitchPortConnection{
+					PortgroupKey: wanPG.Reference().Value,
+					SwitchUuid:   dvsMo.Uuid,
+				},
+			}
+			deviceChange := types.VirtualDeviceConfigSpec{
+				Operation: types.VirtualDeviceConfigSpecOperationEdit,
+				Device:    device,
+			}
+			deviceList = append(deviceList, &deviceChange)
+		}
+		if device.GetVirtualDevice().DeviceInfo.GetDescription().Label == "Network adapter 2" {
+			device.GetVirtualDevice().Backing = &types.VirtualEthernetCardDistributedVirtualPortBackingInfo{
+				Port: types.DistributedVirtualSwitchPortConnection{
+					PortgroupKey: pg.Reference().Value,
+					SwitchUuid:   dvsMo.Uuid,
+				},
+			}
+			deviceChange := types.VirtualDeviceConfigSpec{
+				Operation: types.VirtualDeviceConfigSpecOperationEdit,
+				Device:    device,
+			}
+			deviceList = append(deviceList, &deviceChange)
+		}
+	}
 
+	configSpec := types.VirtualMachineConfigSpec{
+		DeviceChange: deviceList,
+	}
 
-    wg := sync.WaitGroup{}
-    wg.Add(1)
-    CloneVM(&wg, templateMo, *folder, cloneSpec)
+	_, err = templateObj.Reconfigure(vSphereClient.ctx, configSpec)
+	if err != nil {
+		log.Println(errors.Wrap(err, "Error reconfiguring router"))
+		return err
+	}
 
-    return nil
+	return nil
+}
+
+func DestroyFolder(wg *sync.WaitGroup, folder *types.ManagedObjectReference) {
+	defer wg.Done()
+	folderObj := object.NewFolder(vSphereClient.client, *folder)
+	task, err := folderObj.Destroy(vSphereClient.ctx)
+	if err != nil {
+		log.Println(errors.Wrap(err, "Error destroying folder"))
+	}
+
+	err = task.Wait(vSphereClient.ctx)
+	if err != nil {
+		log.Println(errors.Wrap(err, "Error waiting for task"))
+	}
+}
+
+func DestroyVM(wg *sync.WaitGroup, vm *types.ManagedObjectReference) {
+	defer wg.Done()
+	vmObj := object.NewVirtualMachine(vSphereClient.client, *vm)
+	task, err := vmObj.Destroy(vSphereClient.ctx)
+	if err != nil {
+		log.Println(errors.Wrap(err, "Error destroying VM"))
+	}
+
+	err = task.Wait(vSphereClient.ctx)
+	if err != nil {
+		log.Println(errors.Wrap(err, "Error waiting for task"))
+	}
+}
+
+func DestroyResourcePool(wg *sync.WaitGroup, rp *types.ManagedObjectReference) {
+	defer wg.Done()
+	rpObj := object.NewResourcePool(vSphereClient.client, *rp)
+	task, err := rpObj.Destroy(vSphereClient.ctx)
+	if err != nil {
+		log.Println(errors.Wrap(err, "Error destroying resource pool"))
+	}
+
+	err = task.Wait(vSphereClient.ctx)
+	if err != nil {
+		log.Println(errors.Wrap(err, "Error waiting for task"))
+	}
+}
+
+func DestroyPortGroup(pg types.ManagedObjectReference) error {
+	pgObj := object.NewNetwork(vSphereClient.client, pg.Reference())
+	task, err := pgObj.Destroy(vSphereClient.ctx)
+	if err != nil {
+		log.Println(errors.Wrap(err, "Error destroying port group"))
+	}
+
+	err = task.Wait(vSphereClient.ctx)
+	if err != nil {
+		log.Println(errors.Wrap(err, "Error waiting for task"))
+	}
+
+	return nil
+}
+
+func DestroyTag(name string) error {
+	tag, err := GetTagByName(name)
+	if err != nil {
+		log.Println(errors.Wrap(err, "Error getting tag by name"))
+		return err
+	}
+
+	err = tagManager.DeleteTag(vSphereClient.ctx, &tag)
+	if err != nil {
+		log.Println(errors.Wrap(err, "Error deleting tag"))
+		return err
+	}
+	return nil
 }

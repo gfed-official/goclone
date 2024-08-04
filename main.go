@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"net/url"
 
@@ -11,12 +12,13 @@ import (
 	"github.com/vmware/govmomi/find"
 	"github.com/vmware/govmomi/object"
 	"github.com/vmware/govmomi/vapi/rest"
+	"github.com/vmware/govmomi/vapi/tags"
 	"github.com/vmware/govmomi/vim25"
 	"github.com/vmware/govmomi/vim25/mo"
 	"github.com/vmware/govmomi/vim25/soap"
-	"github.com/vmware/govmomi/vim25/types"
 
 	"goclone/models"
+	"os"
 )
 
 type VSphereClient struct {
@@ -26,14 +28,15 @@ type VSphereClient struct {
 }
 
 var (
-	vSphereClient *VSphereClient
-	tomlConf      = &models.Config{}
-	configPath    = "./config.conf"
-	finder        = &find.Finder{}
-	datastore     = &object.Datastore{}
-    dvsMo           mo.DistributedVirtualSwitch
-    templateFolder  *object.Folder
-    templateFolderRef types.ManagedObjectReference
+	vSphereClient      *VSphereClient
+	tomlConf           = &models.Config{}
+	configPath         = "./config.conf"
+	finder             *find.Finder
+	datastore          *object.Datastore
+	dvsMo              mo.DistributedVirtualSwitch
+	templateFolder     *object.Folder
+	tagManager         *tags.Manager
+	targetResourcePool *object.ResourcePool
 )
 
 func init() {
@@ -68,38 +71,14 @@ func init() {
 		restClient: rc,
 		ctx:        context.Background(),
 	}
+
+	InitializeGovmomi()
 }
 
 func main() {
-	finder = find.NewFinder(vSphereClient.client, true)
 
-	dc, err := finder.Datacenter(vSphereClient.ctx, tomlConf.Datacenter)
-	if err != nil {
-		log.Fatalln(errors.Wrap(err, "Error finding datacenter"))
-	}
-
-	finder.SetDatacenter(dc)
-
-	datastore, err = finder.Datastore(vSphereClient.ctx, tomlConf.Datastore)
-	if err != nil {
-		log.Fatalln(errors.Wrap(err, "Error finding datastore"))
-	}
-
-    dswitch, err := finder.Network(vSphereClient.ctx, tomlConf.MainDistributedSwitch)
-    if err != nil {
-        log.Fatalln(errors.Wrap(err, "Error finding distributed switch"))
-    }
-
-    dvs := object.NewDistributedVirtualSwitch(vSphereClient.client, dswitch.Reference())
-    err = dvs.Properties(vSphereClient.ctx, dvs.Reference(), []string{"uuid"}, &dvsMo)
-    if err != nil {
-        log.Fatalln(errors.Wrap(err, "Error getting distributed switch properties"))
-    }
-
-    templateFolder, err = finder.Folder(vSphereClient.ctx, tomlConf.TemplateFolder)
-    templateFolderRef = templateFolder.Reference()
-
-	WebClone("Evan-Test", tomlConf.TargetResourcePool, "0040_RvBCoreNetwork", "edeters", 69)
+	WebClone("Evan-Test", "0040_RvBCoreNetwork", "edeters", 69)
+	//DestroyResources("69_Evan-Test_edeters")
 
 	/**
 
@@ -160,4 +139,38 @@ func CORSMiddleware() gin.HandlerFunc {
 
 		c.Next()
 	}
+}
+
+func InitializeGovmomi() {
+	finder = find.NewFinder(vSphereClient.client, true)
+
+	dc, err := finder.Datacenter(vSphereClient.ctx, tomlConf.Datacenter)
+	if err != nil {
+		log.Fatalln(errors.Wrap(err, "Error finding datacenter"))
+	}
+
+	finder.SetDatacenter(dc)
+
+	datastore, err = finder.Datastore(vSphereClient.ctx, tomlConf.Datastore)
+	if err != nil {
+		log.Fatalln(errors.Wrap(err, "Error finding datastore"))
+	}
+
+	dswitch, err := finder.Network(vSphereClient.ctx, tomlConf.MainDistributedSwitch)
+	if err != nil {
+		log.Fatalln(errors.Wrap(err, "Error finding distributed switch"))
+	}
+
+	dvs := object.NewDistributedVirtualSwitch(vSphereClient.client, dswitch.Reference())
+	err = dvs.Properties(vSphereClient.ctx, dvs.Reference(), []string{"uuid"}, &dvsMo)
+	if err != nil {
+		log.Fatalln(errors.Wrap(err, "Error getting distributed switch properties"))
+	}
+
+	templateFolder, err = finder.Folder(vSphereClient.ctx, tomlConf.TemplateFolder)
+
+	tagManager = tags.NewManager(vSphereClient.restClient)
+
+	targetResourcePool, err = finder.ResourcePool(vSphereClient.ctx, tomlConf.TargetResourcePool)
+	fmt.Fprintln(os.Stdout, []any{"Initialized"}...)
 }

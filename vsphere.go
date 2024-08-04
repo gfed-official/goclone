@@ -307,17 +307,16 @@ func vSphereCustomClone(podName string, vmsToClone []string, nat bool, username 
 	return nil
 }
 
-func WebClone(sourceRP, targetRP, wanPG, username string, portGroup int32) {
+func WebClone(sourceRP, wanPG, username string, portGroup int32) {
 	/**
-	err := vSpherePodLimit(username)
-	if err != nil {
-		log.Println(err)
-		return
-	}
+	  err := vSpherePodLimit(username)
+	  if err != nil {
+	      log.Println(err)
+	      return
+	  }
 	*/
 
-    wanPGRef, err := GetPortGroup(wanPG)
-
+	wanPGRef, err := GetPortGroup(wanPG)
 	strPortGroup := strconv.Itoa(int(portGroup))
 	pgName := strings.Join([]string{strPortGroup, tomlConf.PortGroupSuffix}, "_")
 	tagName := strings.Join([]string{strPortGroup, sourceRP, username}, "_")
@@ -325,6 +324,11 @@ func WebClone(sourceRP, targetRP, wanPG, username string, portGroup int32) {
 	tag, err := CreateTag(tagName)
 	if err != nil {
 		log.Println(errors.Wrap(err, "Error creating tag"))
+	}
+
+	targetRPRef, err := CreateResourcePool(tagName)
+	if err != nil {
+		log.Println(errors.Wrap(err, "Error creating resource pool"))
 	}
 
 	pgRef, err := CreatePortGroup(pgName, portGroup)
@@ -337,7 +341,7 @@ func WebClone(sourceRP, targetRP, wanPG, username string, portGroup int32) {
 		log.Println(errors.Wrap(err, "Error assigning tag"))
 	}
 
-	newFolder, newFolderObj, err := CreateVMFolder(tagName)
+	newFolder, err := CreateVMFolder(tagName)
 	if err != nil {
 		log.Println(errors.Wrap(err, "Error creating VM folder"))
 	}
@@ -348,11 +352,6 @@ func WebClone(sourceRP, targetRP, wanPG, username string, portGroup int32) {
 	}
 
 	srcRpRef, err := GetResourcePool(sourceRP)
-	if err != nil {
-		log.Println(errors.Wrap(err, "Error getting resource pool"))
-	}
-
-	dstRpRef, err := GetResourcePool(targetRP)
 	if err != nil {
 		log.Println(errors.Wrap(err, "Error getting resource pool"))
 	}
@@ -374,14 +373,19 @@ func WebClone(sourceRP, targetRP, wanPG, username string, portGroup int32) {
 		log.Println(errors.Wrap(err, "Error getting VMs in resource pool"))
 	}
 
-    var router *mo.VirtualMachine
+	var router *mo.VirtualMachine
 	if !slices.ContainsFunc(vms, func(vm mo.VirtualMachine) bool {
-		return strings.Contains(vm.Name, "PodRouter")
+		if strings.Contains(vm.Name, "PodRouter") {
+			router = &vm
+			vms = append(vms, *router)
+			return true
+		} else {
+			return false
+		}
 	}) {
 		router, err = CreateRouter(srcRpRef, datastore.Reference(), templateFolder, natted)
+		vms = append(vms, *router)
 	}
-
-    vms = append(vms, *router)
 
 	if vmsWithoutSnapshot := GetSnapshot(vms, "SnapshotForCloning"); vmsWithoutSnapshot != nil {
 		err = CreateSnapshot(vmsWithoutSnapshot, "SnapshotForCloning")
@@ -391,9 +395,63 @@ func WebClone(sourceRP, targetRP, wanPG, username string, portGroup int32) {
 		fmt.Println("Snapshot created", vmsWithoutSnapshot)
 	}
 
-    err = CloneRouter(dstRpRef, pgRef.Reference(), wanPGRef.Reference(), datastore.Reference(), newFolderObj, router)
-    if err != nil {
-        log.Println(errors.Wrap(err, "Error cloning router"))
-    }
-	CloneVMs(vms, newFolder, dstRpRef, datastore.Reference(), pgRef.Reference())
+	CloneVMs(vms, newFolder, targetRPRef, datastore.Reference(), pgRef.Reference())
+
+	vmClones, err := GetVMsInResourcePool(targetRPRef)
+	if err != nil {
+		log.Println(errors.Wrap(err, "Error getting VMs in resource pool"))
+	}
+
+	for _, vm := range vmClones {
+		if strings.Contains(vm.Name, "PodRouter") {
+			router = &vm
+		}
+	}
+
+	err = ConfigRouter(pgRef.Reference(), wanPGRef.Reference(), router)
+	if err != nil {
+		log.Println(errors.Wrap(err, "Error cloning router"))
+	}
+}
+
+func DestroyResources(identifier string) error {
+	attachedObject, err := tagManager.GetAttachedObjectsOnTags(vSphereClient.ctx, []string{identifier})
+	if err != nil {
+		return errors.Wrap(err, "Error getting attached objects")
+	}
+
+	wg := sync.WaitGroup{}
+	var pg types.ManagedObjectReference
+	for _, obj := range attachedObject {
+		for _, o := range obj.ObjectIDs {
+			switch o.Reference().Type {
+			case "ResourcePool":
+				rp := o.Reference()
+				wg.Add(1)
+				go DestroyResourcePool(&wg, &rp)
+			case "Folder":
+				folder := o.Reference()
+				wg.Add(1)
+				go DestroyFolder(&wg, &folder)
+			case "DistributedVirtualPortgroup":
+				pg = o.Reference()
+			}
+		}
+	}
+
+	wg.Wait()
+
+	err = DestroyPortGroup(pg)
+	if err != nil {
+		log.Println(errors.Wrap(err, "Error destroying portgroup"))
+		return err
+	}
+
+	err = DestroyTag(identifier)
+	if err != nil {
+		log.Println(errors.Wrap(err, "Error destroying tag"))
+		return err
+	}
+
+	return nil
 }
