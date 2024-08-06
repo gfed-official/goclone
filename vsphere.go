@@ -346,11 +346,6 @@ func WebClone(sourceRP, wanPG, username string, portGroup int32) {
 		log.Println(errors.Wrap(err, "Error creating VM folder"))
 	}
 
-	err = AssignTagToObject(tag, newFolder)
-	if err != nil {
-		log.Println(errors.Wrap(err, "Error assigning tag"))
-	}
-
 	srcRpRef, err := GetResourcePool(sourceRP)
 	if err != nil {
 		log.Println(errors.Wrap(err, "Error getting resource pool"))
@@ -362,9 +357,13 @@ func WebClone(sourceRP, wanPG, username string, portGroup int32) {
 	}
 
 	natted := false
+	noRouter := false
 	for _, tag := range tagsOnTmpl {
 		if tag.Name == "natted" {
 			natted = true
+		}
+		if tag.Name == "NoRouter" {
+			noRouter = true
 		}
 	}
 
@@ -374,17 +373,19 @@ func WebClone(sourceRP, wanPG, username string, portGroup int32) {
 	}
 
 	var router *mo.VirtualMachine
-	if !slices.ContainsFunc(vms, func(vm mo.VirtualMachine) bool {
-		if strings.Contains(vm.Name, "PodRouter") {
-			router = &vm
+	if !noRouter {
+		if !slices.ContainsFunc(vms, func(vm mo.VirtualMachine) bool {
+			if strings.Contains(vm.Name, "PodRouter") {
+				router = &vm
+				return true
+			} else {
+				return false
+			}
+		}) {
+			router, err = CreateRouter(srcRpRef, datastore.Reference(), templateFolder, natted)
 			vms = append(vms, *router)
-			return true
-		} else {
-			return false
+			fmt.Println(vms)
 		}
-	}) {
-		router, err = CreateRouter(srcRpRef, datastore.Reference(), templateFolder, natted)
-		vms = append(vms, *router)
 	}
 
 	if vmsWithoutSnapshot := GetSnapshot(vms, "SnapshotForCloning"); vmsWithoutSnapshot != nil {
@@ -395,7 +396,8 @@ func WebClone(sourceRP, wanPG, username string, portGroup int32) {
 		fmt.Println("Snapshot created", vmsWithoutSnapshot)
 	}
 
-	CloneVMs(vms, newFolder, targetRPRef, datastore.Reference(), pgRef.Reference())
+	pgStr := strconv.Itoa(int(portGroup))
+	CloneVMs(vms, newFolder, targetRPRef, datastore.Reference(), pgRef.Reference(), pgStr)
 
 	vmClones, err := GetVMsInResourcePool(targetRPRef)
 	if err != nil {
@@ -408,10 +410,29 @@ func WebClone(sourceRP, wanPG, username string, portGroup int32) {
 		}
 	}
 
-	err = ConfigRouter(pgRef.Reference(), wanPGRef.Reference(), router)
-	if err != nil {
-		log.Println(errors.Wrap(err, "Error cloning router"))
+	if !noRouter {
+		err = ConfigRouter(pgRef.Reference(), wanPGRef.Reference(), router, pgStr)
+		if err != nil {
+			log.Println(errors.Wrap(err, "Error cloning router"))
+		}
+
+		if natted {
+			program := types.GuestProgramSpec{
+				ProgramPath: tomlConf.RouterProgram,
+				Arguments:   fmt.Sprintf(tomlConf.RouterProgramArgs, pgStr),
+			}
+
+			auth := types.NamePasswordAuthentication{
+				Username: tomlConf.RouterUsername,
+				Password: tomlConf.RouterPassword,
+			}
+			err = RunProgramOnVM(router, program, auth)
+			if err != nil {
+				log.Println(errors.Wrap(err, "Error running program on router"))
+			}
+		}
 	}
+	SnapshotVMs(vmClones, "Base")
 }
 
 func DestroyResources(identifier string) error {

@@ -76,9 +76,8 @@ func init() {
 }
 
 func main() {
-
-	WebClone("Evan-Test", "0040_RvBCoreNetwork", "edeters", 69)
-	//DestroyResources("69_Evan-Test_edeters")
+	DestroyResources("173_Evan-Test_edeters")
+	WebClone("Evan-Test", "0040_RvBCoreNetwork", "edeters", 174)
 
 	/**
 
