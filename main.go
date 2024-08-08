@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
 	"log"
 	"net/url"
 
@@ -29,7 +30,9 @@ type VSphereClient struct {
 
 var (
 	vSphereClient      *VSphereClient
-	tomlConf           = &models.Config{}
+	mainConfig         = &models.Config{}
+	vCenterConfig      models.VCenterConfig
+	ldapConfig         models.LdapConfig
 	configPath         = "./config.conf"
 	finder             *find.Finder
 	datastore          *object.Datastore
@@ -41,19 +44,23 @@ var (
 
 func init() {
 	// setup config
-	models.ReadConfig(tomlConf, configPath)
-	err := models.CheckConfig(tomlConf)
+
+	models.ReadConfig(mainConfig, configPath)
+	err := models.CheckConfig(mainConfig)
 	if err != nil {
 		log.Fatalln(errors.Wrap(err, "illegal config"))
 	}
 
+	vCenterConfig = mainConfig.VCenterConfig
+	ldapConfig = mainConfig.LdapConfig
+
 	// setup vSphere client
-	u, err := soap.ParseURL(tomlConf.VCenterURL)
+	u, err := soap.ParseURL(vCenterConfig.VCenterURL)
 	if err != nil {
 		log.Fatalln(errors.Wrap(err, "Error parsing vCenter URL"))
 	}
 
-	u.User = url.UserPassword(tomlConf.VCenterUsername, tomlConf.VCenterPassword)
+	u.User = url.UserPassword(vCenterConfig.VCenterUsername, vCenterConfig.VCenterPassword)
 	ctx := context.Background()
 	client, err := govmomi.NewClient(ctx, u, true)
 	if err != nil {
@@ -73,27 +80,19 @@ func init() {
 	}
 
 	InitializeGovmomi()
-}
-
-func main() {
-	DestroyResources("173_Evan-Test_edeters")
-	WebClone("Evan-Test", "0040_RvBCoreNetwork", "edeters", 174)
-
-	/**
-
-	// call before go routine to ensure it finishes before starting router
 	err = vSphereLoadTakenPortGroups()
 	if err != nil {
 		log.Fatalln(errors.Wrap(err, "Error finding taken port groups"))
 	}
+}
 
+func main() {
 	go refreshSession()
 
 	//setup logging
 	gin.SetMode(gin.ReleaseMode)
-	gin.DisableConsoleColor()
 
-	f, err := os.OpenFile(tomlConf.LogPath, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
+	f, err := os.OpenFile(mainConfig.LogPath, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
 	if err != nil {
 		log.Fatal(errors.Wrap(err, "failed to open log file"))
 	}
@@ -115,18 +114,17 @@ func main() {
 	private.Use(authRequired)
 	addPrivateRoutes(private)
 
-	if tomlConf.Https {
-		log.Fatalln(router.RunTLS(":"+fmt.Sprint(tomlConf.Port), tomlConf.Cert, tomlConf.Key))
+	if mainConfig.Https {
+		log.Fatalln(router.RunTLS(":"+fmt.Sprint(mainConfig.Port), mainConfig.Cert, mainConfig.Key))
 	} else {
-		log.Fatalln(router.Run(":" + fmt.Sprint(tomlConf.Port)))
+		log.Fatalln(router.Run(":" + fmt.Sprint(mainConfig.Port)))
 	}
-	*/
 }
 
 func CORSMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.Writer.Header().Set("Content-Type", "application/json")
-		c.Writer.Header().Set("Access-Control-Allow-Origin", tomlConf.DomainName)
+		c.Writer.Header().Set("Access-Control-Allow-Origin", mainConfig.DomainName)
 		c.Writer.Header().Set("Access-Control-Max-Age", "86400")
 		c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
 		c.Writer.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
@@ -143,19 +141,19 @@ func CORSMiddleware() gin.HandlerFunc {
 func InitializeGovmomi() {
 	finder = find.NewFinder(vSphereClient.client, true)
 
-	dc, err := finder.Datacenter(vSphereClient.ctx, tomlConf.Datacenter)
+	dc, err := finder.Datacenter(vSphereClient.ctx, vCenterConfig.Datacenter)
 	if err != nil {
 		log.Fatalln(errors.Wrap(err, "Error finding datacenter"))
 	}
 
 	finder.SetDatacenter(dc)
 
-	datastore, err = finder.Datastore(vSphereClient.ctx, tomlConf.Datastore)
+	datastore, err = finder.Datastore(vSphereClient.ctx, vCenterConfig.Datastore)
 	if err != nil {
 		log.Fatalln(errors.Wrap(err, "Error finding datastore"))
 	}
 
-	dswitch, err := finder.Network(vSphereClient.ctx, tomlConf.MainDistributedSwitch)
+	dswitch, err := finder.Network(vSphereClient.ctx, vCenterConfig.MainDistributedSwitch)
 	if err != nil {
 		log.Fatalln(errors.Wrap(err, "Error finding distributed switch"))
 	}
@@ -166,10 +164,10 @@ func InitializeGovmomi() {
 		log.Fatalln(errors.Wrap(err, "Error getting distributed switch properties"))
 	}
 
-	templateFolder, err = finder.Folder(vSphereClient.ctx, tomlConf.TemplateFolder)
+	templateFolder, err = finder.Folder(vSphereClient.ctx, vCenterConfig.TemplateFolder)
 
 	tagManager = tags.NewManager(vSphereClient.restClient)
 
-	targetResourcePool, err = finder.ResourcePool(vSphereClient.ctx, tomlConf.TargetResourcePool)
+	targetResourcePool, err = finder.ResourcePool(vSphereClient.ctx, vCenterConfig.TargetResourcePool)
 	fmt.Fprintln(os.Stdout, []any{"Initialized"}...)
 }

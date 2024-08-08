@@ -7,8 +7,8 @@ import (
 	"github.com/go-ldap/ldap/v3"
 )
 
-func registerUser(username string, password string, ldappassword string) (string, int) {
-	l, err := ldap.DialURL("ldap://ldap:389")
+func registerUser(username string, password string) (string, int) {
+	l, err := ldap.DialURL(ldapConfig.LdapUri)
 	if err != nil {
 		message := "Failed to connect to LDAP server."
 		return message, 1
@@ -16,7 +16,7 @@ func registerUser(username string, password string, ldappassword string) (string
 	defer l.Close()
 
 	// Bind with Admin
-	err = l.Bind("cn=admin,dc=kamino,dc=labs", ldappassword)
+	err = l.Bind(ldapConfig.LdapAdminDN, ldapConfig.LdapAdminPassword)
 	if err != nil {
 		message := "Failed to bind with LDAP server."
 		return message, 1

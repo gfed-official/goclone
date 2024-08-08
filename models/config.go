@@ -13,34 +13,45 @@ var (
 )
 
 type Config struct {
-	VCenterURL                 string
-	VCenterUsername            string
-	VCenterPassword            string
-	LdapAdminPassword          string
-	Datacenter                 string
-	Datastore                  string
-	PresetTemplateResourcePool string
-	StartingPortGroup          int
-	EndingPortGroup            int
-	Https                      bool
-	Port                       int
-	Cert                       string
-	Key                        string
-	TargetResourcePool         string
-	Domain                     string
-	WanPortGroup               string
-	MaxPodLimit                int
-	LogPath                    string
-	MainDistributedSwitch      string
-	DomainName                 string
-	TemplateFolder             string
-	PortGroupSuffix            string
-	NattedRouterPath           string
-	RouterPath                 string
-	RouterUsername             string
-	RouterPassword             string
-	RouterProgram              string
-	RouterProgramArgs          string
+	Https      bool   `toml:"Https"`
+	Port       int    `toml:"port"`
+	Cert       string `toml:"Cert"`
+	Key        string `toml:"Key"`
+	Domain     string `toml:"Domain"`
+	LogPath    string `toml:"LogPath"`
+	DomainName string `toml:"DomainName"`
+
+	VCenterConfig VCenterConfig `toml:"VCenterConfig"`
+	LdapConfig    LdapConfig    `toml:"LdapConfig"`
+}
+
+type VCenterConfig struct {
+	VCenterURL                 string `toml:"VCenterURL"`
+	VCenterUsername            string `toml:"VCenterUsername"`
+	VCenterPassword            string `toml:"VCenterPassword"`
+	Datacenter                 string `toml:"Datacenter"`
+	Datastore                  string `toml:"Datastore"`
+	PresetTemplateResourcePool string `toml:"PresetTemplateResourcePool"`
+	StartingPortGroup          int    `toml:"StartingPortGroup"`
+	EndingPortGroup            int    `toml:"EndingPortGroup"`
+	TargetResourcePool         string `toml:"TargetResourcePool"`
+	WanPortGroup               string `toml:"WanPortGroup"`
+	MaxPodLimit                int    `toml:"MaxPodLimit"`
+	MainDistributedSwitch      string `toml:"MainDistributedSwitch"`
+	TemplateFolder             string `toml:"TemplateFolder"`
+	PortGroupSuffix            string `toml:"PortGroupSuffix"`
+	NattedRouterPath           string `toml:"NattedRouterPath"`
+	RouterPath                 string `toml:"RouterPath"`
+	RouterUsername             string `toml:"RouterUsername"`
+	RouterPassword             string `toml:"RouterPassword"`
+	RouterProgram              string `toml:"RouterProgram"`
+	RouterProgramArgs          string `toml:"RouterProgramArgs"`
+}
+
+type LdapConfig struct {
+	LdapAdminDN       string `toml:"LdapAdminDN"`
+	LdapAdminPassword string `toml:"LdapAdminPassword"`
+	LdapUri           string `toml:"LdapUri"`
 }
 
 /*
@@ -66,26 +77,26 @@ func ReadConfig(conf *Config, configPath string) {
 Check for config errors and set defaults
 */
 func CheckConfig(conf *Config) error {
-	if conf.VCenterURL == "" {
+	if conf.VCenterConfig.VCenterURL == "" {
 		return errors.New("illegal config: vCenterURL must be defined")
 	}
-	if conf.VCenterUsername == "" {
+	if conf.VCenterConfig.VCenterUsername == "" {
 		return errors.New("illegal config: vCenterUsername must be defined")
 	}
-	if conf.VCenterPassword == "" {
+	if conf.VCenterConfig.VCenterPassword == "" {
 		return errors.New("illegal config: vCenterPassword must be defined")
 	}
-	if conf.Datacenter == "" {
+	if conf.VCenterConfig.Datacenter == "" {
 		return errors.New("illegal config: Datacenter must be defined")
 	}
-	if conf.PresetTemplateResourcePool == "" {
+	if conf.VCenterConfig.PresetTemplateResourcePool == "" {
 		return errors.New("illegal config: PresetTemplateResourcePool must be defined")
 	}
-	if conf.MainDistributedSwitch == "" {
+	if conf.VCenterConfig.MainDistributedSwitch == "" {
 		return errors.New("illegal config: MainDistributedSwitch must be defined")
 	}
 
-	if conf.StartingPortGroup == 0 || conf.EndingPortGroup == 0 {
+	if conf.VCenterConfig.StartingPortGroup == 0 || conf.VCenterConfig.EndingPortGroup == 0 {
 		return errors.New("illegal config: StartingPortGroup and EndingPortGroup must be defined")
 	}
 	if conf.Port == 0 {
@@ -102,7 +113,7 @@ func CheckConfig(conf *Config) error {
 		}
 	}
 
-	if conf.MaxPodLimit == 0 {
+	if conf.VCenterConfig.MaxPodLimit == 0 {
 		return errors.New("illegal config: MaxPodLimit must be more than 0")
 	}
 

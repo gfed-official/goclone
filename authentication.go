@@ -60,9 +60,9 @@ func login(c *gin.Context) {
 
 	// Log into vSphere to test credentials
 	ctx := context.Background()
-	u, err := soap.ParseURL(tomlConf.VCenterURL)
+	u, err := soap.ParseURL(vCenterConfig.VCenterURL)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Failed to reach %s.", tomlConf.VCenterURL)})
+		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Failed to reach %s.", vCenterConfig.VCenterURL)})
 		return
 	}
 
@@ -125,7 +125,7 @@ func register(c *gin.Context) {
 		return
 	}
 
-	message, err := registerUser(username, password, tomlConf.LdapAdminPassword)
+	message, err := registerUser(username, password)
 
 	if err != 0 {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": message})

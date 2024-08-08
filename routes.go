@@ -13,6 +13,8 @@ func addPublicRoutes(g *gin.RouterGroup) {
 	g.POST("/login", login)
 	g.POST("/register", register)
 	g.GET("/health", health)
+	g.DELETE("/pod/delete/:podId", deletePod)
+	g.POST("/pod/clone/template", invokePodCloneFromTemplate)
 }
 
 func addPrivateRoutes(g *gin.RouterGroup) {
@@ -23,12 +25,10 @@ func addPrivateRoutes(g *gin.RouterGroup) {
 
 	// system
 	g.GET("/view/templates/preset", getPresetTemplates)
-	g.GET("/view/templates/custom", getCustomTemplates)
-	g.DELETE("/pod/delete/:podId", deletePod)
+	//g.GET("/view/templates/custom", getCustomTemplates)
 
 	// clone
-	g.POST("/pod/clone/template", invokePodCloneFromTemplate)
-	g.POST("/pod/clone/custom", invokePodCloneCustom)
+	//g.POST("/pod/clone/custom", invokePodCloneCustom)
 }
 
 // func pageData(c *gin.Context, title string, ginMap gin.H) gin.H {
@@ -74,9 +74,8 @@ func getPods(c *gin.Context) {
 
 func deletePod(c *gin.Context) {
 	podId := c.Param("podId")
-	username := getUser(c)
 
-	err := vSphereDeletePod(podId, username)
+	err := DestroyResources(podId)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": errors.Wrap(err, "Error").Error()})
 		return
@@ -109,7 +108,7 @@ func invokePodCloneCustom(c *gin.Context) {
 }
 
 func invokePodCloneFromTemplate(c *gin.Context) {
-	var jsonData map[string]interface{}// cheaty solution to avoid form struct xd
+	var jsonData map[string]interface{} // cheaty solution to avoid form struct xd
 	err := c.ShouldBindJSON(&jsonData)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": errors.Wrap(err, "Missing fields").Error()})
