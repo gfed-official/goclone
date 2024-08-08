@@ -1,10 +1,8 @@
 package main
 
 import (
-	"bytes"
 	"fmt"
 	"log"
-	"os/exec"
 	"regexp"
 	"slices"
 	"strconv"
@@ -15,6 +13,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
 	"github.com/vmware/govmomi/find"
+	"github.com/vmware/govmomi/object"
 	"github.com/vmware/govmomi/property"
 	"github.com/vmware/govmomi/vim25/mo"
 	"github.com/vmware/govmomi/vim25/types"
@@ -219,12 +218,7 @@ func vSphereTemplateClone(templateId string, username string) error {
 	}
 	availablePortGroups.Mu.Unlock()
 
-	pgOctet, err := GetNatOctet(strconv.Itoa(nextAvailablePortGroup))
-	if err != nil {
-		return err
-	}
-
-	err = WebClone(templateId, vCenterConfig.WanPortGroup, username, nextAvailablePortGroup, pgOctet)
+	err = TemplateClone(templateId, username, nextAvailablePortGroup)
 	if err != nil {
 		return err
 	}
@@ -238,84 +232,28 @@ func vSphereCustomClone(podName string, vmsToClone []string, nat bool, username 
 		return err
 	}
 
-	var nextAvailablePortGroup string
+	var nextAvailablePortGroup int
 
 	availablePortGroups.Mu.Lock()
 	for i := vCenterConfig.StartingPortGroup; i < vCenterConfig.EndingPortGroup; i++ {
 		if _, exists := availablePortGroups.Data[i]; !exists {
-			nextAvailablePortGroup = strconv.Itoa(i)
-			availablePortGroups.Data[i] = fmt.Sprintf("%s_%s", nextAvailablePortGroup, vCenterConfig.PortGroupSuffix)
+			nextAvailablePortGroup = i
+			availablePortGroups.Data[i] = fmt.Sprintf("%v_%s", nextAvailablePortGroup, vCenterConfig.PortGroupSuffix)
 			break
 		}
 	}
 	availablePortGroups.Mu.Unlock()
 
-	var natString string
-	if nat {
-		natString = "$true"
-	} else {
-		natString = "$false"
-	}
-
-	var formattedSlice []string
-	for _, s := range vmsToClone {
-		formattedSlice = append(formattedSlice, `"`+s+`"`)
-	}
-
-	vms := strings.Join(formattedSlice, ",")
-	cmd := exec.Command("pwsh", "-Command", ".\\pwsh\\customclone.ps1", vCenterConfig.VCenterURL, podName, username, vms, natString, nextAvailablePortGroup, vCenterConfig.TargetResourcePool, mainConfig.Domain, vCenterConfig.WanPortGroup)
-
-	var out bytes.Buffer
-	var stderr bytes.Buffer
-
-	cmd.Stdout = &out
-	cmd.Stderr = &stderr
-	err = cmd.Run()
-	if err != nil {
-		log.Println(stderr.String())
-		return err
-	}
-
-	log.Println(stderr.String())
+    err = CustomClone(podName, vmsToClone, nat, username, nextAvailablePortGroup)
+    if err != nil {
+        return err
+    }
 
 	return nil
 }
 
-func WebClone(sourceRP, wanPG, username string, portGroup, pgOctet int) error {
-	wanPGRef, err := GetPortGroup(wanPG)
-	strPortGroup := strconv.Itoa(int(portGroup))
-	pgName := strings.Join([]string{strPortGroup, vCenterConfig.PortGroupSuffix}, "_")
-	tagName := strings.Join([]string{strPortGroup, sourceRP, username}, "_")
-
-	tag, err := CreateTag(tagName)
-	if err != nil {
-		log.Println(errors.Wrap(err, "Error creating tag"))
-		return err
-	}
-
-	targetRPRef, err := CreateResourcePool(tagName)
-	if err != nil {
-		log.Println(errors.Wrap(err, "Error creating resource pool"))
-		return err
-	}
-
-	pgRef, err := CreatePortGroup(pgName, portGroup)
-	if err != nil {
-		log.Println(errors.Wrap(err, "Error creating portgroup"))
-		return err
-	}
-
-	err = AssignTagToObject(tag, pgRef)
-	if err != nil {
-		log.Println(errors.Wrap(err, "Error assigning tag"))
-		return err
-	}
-
-	newFolder, err := CreateVMFolder(tagName)
-	if err != nil {
-		log.Println(errors.Wrap(err, "Error creating VM folder"))
-		return err
-	}
+func TemplateClone(sourceRP, username string, portGroup int) error {
+    targetRP, pg, newFolder, err := InitializeClone(sourceRP, username, portGroup)
 
 	srcRp, err := GetResourcePool(sourceRP)
 	if err != nil {
@@ -367,29 +305,38 @@ func WebClone(sourceRP, wanPG, username string, portGroup, pgOctet int) error {
 		return err
 	}
 
-	pgStr := strconv.Itoa(int(portGroup))
-	CloneVMs(vms, newFolder, targetRPRef, datastore.Reference(), pgRef.Reference(), pgStr)
+	pgStr := strconv.Itoa(portGroup)
+	CloneVMs(vms, newFolder, targetRP.Reference(), datastore.Reference(), pg.Reference(), pgStr)
 
-	vmClones, err := GetVMsInResourcePool(targetRPRef)
-	if err != nil {
-		log.Println(errors.Wrap(err, "Error getting VMs in resource pool"))
-		return err
-	}
+    vmClones, err := newFolder.Children(vSphereClient.ctx)
+    if err != nil {
+        log.Println(errors.Wrap(err, "Error getting children"))
+        return err
+    }
 
+    var vmClonesMo []mo.VirtualMachine
 	for _, vm := range vmClones {
+        vmObj := object.NewVirtualMachine(vSphereClient.client, vm.Reference())
+        var vm *mo.VirtualMachine
+        err = vmObj.Properties(vSphereClient.ctx, vmObj.Reference(), []string{"name"}, &vm)
+        vmClonesMo = append(vmClonesMo, *vm)
 		if strings.Contains(vm.Name, "PodRouter") {
-			router = &vm
+			router = vm
 		}
 	}
 
 	if !noRouter {
-		err = ConfigRouter(pgRef.Reference(), wanPGRef.Reference(), router, pgStr)
+		err = ConfigRouter(pg.Reference(), wanPG.Reference(), router, pgStr)
 		if err != nil {
 			log.Println(errors.Wrap(err, "Error cloning router"))
 			return err
 		}
 
 		if natted {
+            pgOctet, err := GetNatOctet(strconv.Itoa(portGroup))
+            if err != nil {
+                return err
+            }
 			program := types.GuestProgramSpec{
 				ProgramPath: vCenterConfig.RouterProgram,
 				Arguments:   fmt.Sprintf(vCenterConfig.RouterProgramArgs, pgOctet),
@@ -406,8 +353,113 @@ func WebClone(sourceRP, wanPG, username string, portGroup, pgOctet int) error {
 			}
 		}
 	}
-	SnapshotVMs(vmClones, "Base")
+	SnapshotVMs(vmClonesMo, "Base")
 	return nil
+}
+
+func CustomClone(podName string, vmsToClone []string, natted bool, username string, portGroup int) error {
+    targetRP, pg, newFolder, err := InitializeClone(podName, username, portGroup)
+    if err != nil {
+        log.Println(errors.Wrap(err, "Error initializing clone"))
+        return err
+    }
+    var vms []mo.VirtualMachine
+    for _, vm := range vmsToClone {
+        vmObj, err := finder.VirtualMachine(vSphereClient.ctx, vm)
+        if err != nil {
+            log.Println(errors.Wrap(err, "Error finding VM"))
+            return err
+        }
+        var vmMo mo.VirtualMachine
+        err = vmObj.Properties(vSphereClient.ctx, vmObj.Reference(), []string{"name"}, &vmMo)
+        if err != nil {
+            log.Println(errors.Wrap(err, "Error getting VM properties"))
+            return err
+        }
+        vms = append(vms, vmMo)
+    }
+
+    pgStr := strconv.Itoa(portGroup)
+    CloneVMsFromTemplates(vms, newFolder, targetRP.Reference(), datastore.Reference(), pg.Reference(), pgStr)
+
+    router, err := CreateRouter(targetRP.Reference(), datastore.Reference(), newFolder, natted)
+    vms = append(vms, *router)
+
+    vmClones, err := newFolder.Children(vSphereClient.ctx)
+    if err != nil {
+        log.Println(errors.Wrap(err, "Error getting children"))
+        return err
+    }
+
+    var vmClonesMo []mo.VirtualMachine
+    for _, vm := range vmClones {
+        vmObj := object.NewVirtualMachine(vSphereClient.client, vm.Reference())
+        var vm *mo.VirtualMachine
+        err = vmObj.Properties(vSphereClient.ctx, vmObj.Reference(), []string{"name"}, &vm)
+        vmClonesMo = append(vmClonesMo, *vm)
+    }
+
+    if natted {
+        pgOctet, err := GetNatOctet(strconv.Itoa(portGroup))
+        if err != nil {
+            return err
+        }
+        program := types.GuestProgramSpec{
+            ProgramPath: vCenterConfig.RouterProgram,
+            Arguments:   fmt.Sprintf(vCenterConfig.RouterProgramArgs, pgOctet),
+        }
+
+        auth := types.NamePasswordAuthentication{
+            Username: vCenterConfig.RouterUsername,
+            Password: vCenterConfig.RouterPassword,
+        }
+
+        err = RunProgramOnVM(router, program, auth)
+        if err != nil {
+            log.Println(errors.Wrap(err, "Error running program on router"))
+            return err
+        }
+    }
+    SnapshotVMs(vmClonesMo, "Base")
+
+    return nil
+}
+
+func InitializeClone(podName, username string, portGroup int) (*types.ManagedObjectReference, object.NetworkReference, *object.Folder, error) {
+	strPortGroup := strconv.Itoa(int(portGroup))
+	pgName := strings.Join([]string{strPortGroup, vCenterConfig.PortGroupSuffix}, "_")
+	tagName := strings.Join([]string{strPortGroup, podName, username}, "_")
+
+	tag, err := CreateTag(tagName)
+	if err != nil {
+		log.Println(errors.Wrap(err, "Error creating tag"))
+        return &types.ManagedObjectReference{}, &object.Network{}, &object.Folder{}, err
+	}
+
+	targetRP, err := CreateResourcePool(tagName)
+	if err != nil {
+		log.Println(errors.Wrap(err, "Error creating resource pool"))
+        return &types.ManagedObjectReference{}, &object.Network{}, &object.Folder{}, err
+	}
+
+	pg, err := CreatePortGroup(pgName, portGroup)
+	if err != nil {
+		log.Println(errors.Wrap(err, "Error creating portgroup"))
+        return &types.ManagedObjectReference{}, &object.Network{}, &object.Folder{}, err
+	}
+
+	err = AssignTagToObject(tag, pg)
+	if err != nil {
+		log.Println(errors.Wrap(err, "Error assigning tag"))
+        return &types.ManagedObjectReference{}, &object.Network{}, &object.Folder{}, err
+	}
+
+	newFolder, err := CreateVMFolder(tagName)
+	if err != nil {
+		log.Println(errors.Wrap(err, "Error creating VM folder"))
+        return &types.ManagedObjectReference{}, &object.Network{}, &object.Folder{}, err
+	}
+    return &targetRP, pg, newFolder, nil
 }
 
 func DestroyResources(podId string) error {

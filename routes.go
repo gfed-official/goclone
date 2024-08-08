@@ -25,10 +25,10 @@ func addPrivateRoutes(g *gin.RouterGroup) {
 
 	// system
 	g.GET("/view/templates/preset", getPresetTemplates)
-	//g.GET("/view/templates/custom", getCustomTemplates)
+	g.GET("/view/templates/custom", getCustomTemplates)
 
 	// clone
-	//g.POST("/pod/clone/custom", invokePodCloneCustom)
+	g.POST("/pod/clone/custom", invokePodCloneCustom)
 }
 
 // func pageData(c *gin.Context, title string, ginMap gin.H) gin.H {

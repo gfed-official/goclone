@@ -152,7 +152,7 @@ func GetResourcePool(name string) (*object.ResourcePool, error) {
 	return rpObj, nil
 }
 
-func CreateVMFolder(name string) (types.ManagedObjectReference, error) {
+func CreateVMFolder(name string) (*object.Folder, error) {
 	vmFolder, err := finder.Folder(vSphereClient.ctx, "vm")
 	if err != nil {
 		log.Println(errors.Wrap(err, "Cannot find vm folder"))
@@ -166,7 +166,7 @@ func CreateVMFolder(name string) (types.ManagedObjectReference, error) {
 	tag, err := tagManager.GetTag(vSphereClient.ctx, name)
 	err = AssignTagToObject(*tag, newFolder.Reference())
 
-	return newFolder.Reference(), nil
+	return newFolder, nil
 }
 
 func GetVMsInResourcePool(rp types.ManagedObjectReference) ([]mo.VirtualMachine, error) {
@@ -239,7 +239,7 @@ func GetSnapshotRef(vm mo.VirtualMachine, name string) types.ManagedObjectRefere
 	return snapshot.Reference()
 }
 
-func CloneVMs(vms []mo.VirtualMachine, folder, resourcePool, ds, pg types.ManagedObjectReference, pgNum string) {
+func CloneVMs(vms []mo.VirtualMachine, folder *object.Folder, resourcePool, ds, pg types.ManagedObjectReference, pgNum string) {
 	var wg sync.WaitGroup
 	for _, vm := range vms {
 		var configSpec types.VirtualMachineConfigSpec
@@ -262,11 +262,35 @@ func CloneVMs(vms []mo.VirtualMachine, folder, resourcePool, ds, pg types.Manage
 		}
 
 		vm.Name = strings.Join([]string{pgNum, vm.Name}, "-")
-		folderObj := object.NewFolder(vSphereClient.client, folder)
+		folderObj := object.NewFolder(vSphereClient.client, folder.Reference())
 		wg.Add(1)
 		go CloneVM(&wg, vm, *folderObj, spec)
 	}
 	wg.Wait()
+}
+
+func CloneVMsFromTemplates(templates []mo.VirtualMachine, folder *object.Folder, resourcePool, ds, pg types.ManagedObjectReference, pgNum string) {
+    var wg sync.WaitGroup
+    for _, template := range templates {
+        vmObj := object.NewVirtualMachine(vSphereClient.client, template.Reference())
+        configSpec, err := ConfigureVMNetwork(vmObj, pg)
+        if err != nil {
+            log.Println(errors.Wrap(err, "Failed to configure VM network"))
+        }
+
+        spec := types.VirtualMachineCloneSpec{
+            Location: types.VirtualMachineRelocateSpec{
+                Datastore:    &ds,
+                Pool:         &resourcePool,
+            },
+            Config: &configSpec,
+        }
+
+        folderObj := object.NewFolder(vSphereClient.client, folder.Reference())
+        wg.Add(1)
+        go CloneVM(&wg, template, *folderObj, spec)
+    }
+    wg.Wait()
 }
 
 func CloneVM(wg *sync.WaitGroup, vm mo.VirtualMachine, folder object.Folder, spec types.VirtualMachineCloneSpec) {

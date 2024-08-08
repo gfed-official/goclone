@@ -29,17 +29,21 @@ type VSphereClient struct {
 }
 
 var (
-	vSphereClient      *VSphereClient
+	configPath         = "./config.conf"
 	mainConfig         = &models.Config{}
 	vCenterConfig      models.VCenterConfig
 	ldapConfig         models.LdapConfig
-	configPath         = "./config.conf"
+)
+
+var (
+	vSphereClient      *VSphereClient
 	finder             *find.Finder
 	datastore          *object.Datastore
 	dvsMo              mo.DistributedVirtualSwitch
 	templateFolder     *object.Folder
 	tagManager         *tags.Manager
 	targetResourcePool *object.ResourcePool
+    wanPG              *object.DistributedVirtualPortgroup
 )
 
 func init() {
@@ -87,6 +91,11 @@ func init() {
 }
 
 func main() {
+    err := vSphereCustomClone("evan-test", []string{"Ubuntu 22.04 Blank", "Windows 10 Blank"}, true, "edeters")
+    if err != nil {
+        log.Fatalln(errors.Wrap(err, "Error cloning VMs"))
+    }
+
 	go refreshSession()
 
 	//setup logging
@@ -170,4 +179,11 @@ func InitializeGovmomi() {
 
 	targetResourcePool, err = finder.ResourcePool(vSphereClient.ctx, vCenterConfig.TargetResourcePool)
 	fmt.Fprintln(os.Stdout, []any{"Initialized"}...)
+
+    pg, err := finder.Network(vSphereClient.ctx, vCenterConfig.WanPortGroup)
+    if err != nil {
+        log.Fatalln(errors.Wrap(err, "Error finding WAN port group"))
+    }
+
+    wanPG = object.NewDistributedVirtualPortgroup(vSphereClient.client, pg.Reference())
 }
