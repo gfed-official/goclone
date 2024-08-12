@@ -3,8 +3,9 @@ package models
 import (
 	"log"
 	"os"
+	"strconv"
+	"strings"
 
-	"github.com/BurntSushi/toml"
 	"github.com/pkg/errors"
 )
 
@@ -13,64 +14,97 @@ var (
 )
 
 type Config struct {
-	Https      bool   `toml:"Https"`
-	Port       int    `toml:"port"`
-	Cert       string `toml:"Cert"`
-	Key        string `toml:"Key"`
-	Domain     string `toml:"Domain"`
-	LogPath    string `toml:"LogPath"`
-	DomainName string `toml:"DomainName"`
+	Port    int
+	Domain  string
+	LogPath string
+	Fqdn    string
 
-	VCenterConfig VCenterConfig `toml:"VCenterConfig"`
-	LdapConfig    LdapConfig    `toml:"LdapConfig"`
+	VCenterConfig VCenterConfig
+	LdapConfig    LdapConfig
 }
 
 type VCenterConfig struct {
-	VCenterURL                 string `toml:"VCenterURL"`
-	VCenterUsername            string `toml:"VCenterUsername"`
-	VCenterPassword            string `toml:"VCenterPassword"`
-	Datacenter                 string `toml:"Datacenter"`
-	Datastore                  string `toml:"Datastore"`
-	PresetTemplateResourcePool string `toml:"PresetTemplateResourcePool"`
-	StartingPortGroup          int    `toml:"StartingPortGroup"`
-	EndingPortGroup            int    `toml:"EndingPortGroup"`
-	TargetResourcePool         string `toml:"TargetResourcePool"`
-	WanPortGroup               string `toml:"WanPortGroup"`
-	MaxPodLimit                int    `toml:"MaxPodLimit"`
-	MainDistributedSwitch      string `toml:"MainDistributedSwitch"`
-	TemplateFolder             string `toml:"TemplateFolder"`
-	PortGroupSuffix            string `toml:"PortGroupSuffix"`
-	NattedRouterPath           string `toml:"NattedRouterPath"`
-	RouterPath                 string `toml:"RouterPath"`
-	RouterUsername             string `toml:"RouterUsername"`
-	RouterPassword             string `toml:"RouterPassword"`
-	RouterProgram              string `toml:"RouterProgram"`
-	RouterProgramArgs          string `toml:"RouterProgramArgs"`
+	VCenterURL                 string
+	VCenterUsername            string
+	VCenterPassword            string
+	Datacenter                 string
+	Datastore                  string
+	PresetTemplateResourcePool string
+	StartingPortGroup          int
+	EndingPortGroup            int
+	TargetResourcePool         string
+	WanPortGroup               string
+	MaxPodLimit                int
+	MainDistributedSwitch      string
+	TemplateFolder             string
+	PortGroupSuffix            string
+	NattedRouterPath           string
+	RouterPath                 string
+	RouterUsername             string
+	RouterPassword             string
+	RouterProgram              string
+	RouterProgramArgs          string
 }
 
 type LdapConfig struct {
-	LdapAdminDN       string `toml:"LdapAdminDN"`
-	LdapAdminPassword string `toml:"LdapAdminPassword"`
-	LdapUri           string `toml:"LdapUri"`
+	LdapAdminDN       string
+	LdapAdminPassword string
+	LdapUri           string
 }
 
 /*
 Load config settings into given config object
 */
-func ReadConfig(conf *Config, configPath string) {
-	fileContent, err := os.ReadFile(configPath)
+func ReadConfigFromEnv(conf *Config) error {
+	startPG, err := strconv.Atoi(os.Getenv("STARTING_PORT_GROUP"))
 	if err != nil {
-		log.Fatalln("Configuration file ("+configPath+") not found:", err)
+		log.Fatalln("Error converting STARTING_PORT_GROUP to int")
+		return err
 	}
-	if md, err := toml.Decode(string(fileContent), &conf); err != nil {
-		log.Fatalln(err)
-	} else {
-		for _, undecoded := range md.Undecoded() {
-			errMsg := "[WARN] Undecoded scoring configuration key \"" + undecoded.String() + "\" will not be used."
-			configErrors = append(configErrors, errMsg)
-			log.Println(errMsg)
-		}
+	endPG, err := strconv.Atoi(os.Getenv("ENDING_PORT_GROUP"))
+	if err != nil {
+		log.Fatalln("Error converting ENDING_PORT_GROUP to int")
+		return err
 	}
+	port, err := strconv.Atoi(os.Getenv("PORT"))
+	if err != nil {
+		log.Fatalln("Error converting PORT to int")
+		return err
+	}
+	podLimit, err := strconv.Atoi(os.Getenv("MAX_POD_LIMIT"))
+	if err != nil {
+		log.Fatalln("Error converting MAX_POD_LIMIT to int")
+		return err
+	}
+
+	conf.Port = port
+	conf.Domain = os.Getenv("DOMAIN")
+	conf.Fqdn = os.Getenv("FQDN")
+	conf.LogPath = os.Getenv("LOG_PATH")
+
+	conf.VCenterConfig.VCenterURL = os.Getenv("VCENTER_URL")
+	conf.VCenterConfig.VCenterUsername = strings.TrimSpace(os.Getenv("VCENTER_USERNAME"))
+	conf.VCenterConfig.VCenterPassword = strings.TrimSpace(os.Getenv("VCENTER_PASSWORD"))
+
+	conf.VCenterConfig.Datacenter = os.Getenv("DATACENTER")
+	conf.VCenterConfig.Datastore = os.Getenv("DATASTORE")
+	conf.VCenterConfig.PresetTemplateResourcePool = os.Getenv("PRESET_TEMPLATE_RESOURCE_POOL")
+	conf.VCenterConfig.StartingPortGroup = startPG
+	conf.VCenterConfig.EndingPortGroup = endPG
+	conf.VCenterConfig.TargetResourcePool = os.Getenv("TARGET_RESOURCE_POOL")
+	conf.VCenterConfig.WanPortGroup = os.Getenv("WAN_PORT_GROUP")
+	conf.VCenterConfig.MaxPodLimit = podLimit
+	conf.VCenterConfig.MainDistributedSwitch = os.Getenv("MAIN_DISTRIBUTED_SWITCH")
+	conf.VCenterConfig.TemplateFolder = os.Getenv("TEMPLATE_FOLDER")
+	conf.VCenterConfig.PortGroupSuffix = os.Getenv("PORT_GROUP_SUFFIX")
+	conf.VCenterConfig.NattedRouterPath = os.Getenv("NATTED_ROUTER_PATH")
+	conf.VCenterConfig.RouterPath = os.Getenv("ROUTER_PATH")
+	conf.VCenterConfig.RouterUsername = os.Getenv("ROUTER_USERNAME")
+	conf.VCenterConfig.RouterPassword = os.Getenv("ROUTER_PASSWORD")
+	conf.VCenterConfig.RouterProgram = os.Getenv("ROUTER_PROGRAM")
+	conf.VCenterConfig.RouterProgramArgs = os.Getenv("ROUTER_PROGRAM_ARGS")
+
+	return nil
 }
 
 /*
@@ -100,25 +134,15 @@ func CheckConfig(conf *Config) error {
 		return errors.New("illegal config: StartingPortGroup and EndingPortGroup must be defined")
 	}
 	if conf.Port == 0 {
-		if conf.Https {
-			conf.Port = 443
-		} else {
-			conf.Port = 80
-		}
-	}
-
-	if conf.Https {
-		if conf.Cert == "" || conf.Key == "" {
-			return errors.New("illegal config: https requires a cert and key pair")
-		}
+		conf.Port = 80
 	}
 
 	if conf.VCenterConfig.MaxPodLimit == 0 {
 		return errors.New("illegal config: MaxPodLimit must be more than 0")
 	}
 
-	if conf.DomainName == "" {
-		return errors.New("illegal config: Must set DomainName")
+	if conf.Fqdn == "" {
+		return errors.New("illegal config: Must set FQDN")
 	}
 
 	return nil

@@ -1,0 +1,29 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: goclone-config
+  namespace: goclone
+data:
+  PORT: "8080"
+  LOG_PATH: "/var/log/goclone"
+  FQDN: "goclone.sdc.cpp"
+  VCENTER_URL: "https://elsa.sdc.cpp"
+  DATACENTER: "StudentDatacenter"
+  DATASTORE: "Ursula"
+  PRESET_TEMPLATE_RESOURCE_POOL: "07-01_GuestTemplates"
+  STARTING_PORT_GROUP: "1800"
+  ENDING_PORT_GROUP: "2000"
+  TARGET_RESOURCE_POOL: "07-02_Pods"
+  WAN_PORT_GROUP: "0040_RvBCoreNetwork"
+  MAX_POD_LIMIT: "5"
+  MAIN_DISTRIBUTED_SWITCH: "Main_DSW"
+  TEMPLATE_FOLDER: "/StudentDatacenter/vm/08-Goclone"
+  PORT_GROUP_SUFFIX: "PodNetwork"
+  NATTED_ROUTER_PATH: "/StudentDatacenter/vm/Templates/Networking/1:1NAT_VyOS_PodRouter"
+  ROUTER_USERNAME: "vyos"
+  ROUTER_PASSWORD: "vyos"
+  ROUTER_PROGRAM: "/usr/bin/sed"
+  ROUTER_PROGRAM_ARGS: "-i -e 's/{{THIRD_OCTET}}/%v/g' /config/scripts/vyos-postconfig-bootup.script"
+    #LDAP_ADMIN_DN:
+    #LDAP_ADMIN_PASSWORD:
+    #LDAP_URI:

@@ -29,10 +29,9 @@ type VSphereClient struct {
 }
 
 var (
-	configPath         = "./config.conf"
-	mainConfig         = &models.Config{}
-	vCenterConfig      models.VCenterConfig
-	ldapConfig         models.LdapConfig
+	mainConfig    = &models.Config{}
+	vCenterConfig models.VCenterConfig
+	ldapConfig    models.LdapConfig
 )
 
 var (
@@ -43,13 +42,13 @@ var (
 	templateFolder     *object.Folder
 	tagManager         *tags.Manager
 	targetResourcePool *object.ResourcePool
-    wanPG              *object.DistributedVirtualPortgroup
+	wanPG              *object.DistributedVirtualPortgroup
 )
 
 func init() {
 	// setup config
 
-	models.ReadConfig(mainConfig, configPath)
+	models.ReadConfigFromEnv(mainConfig)
 	err := models.CheckConfig(mainConfig)
 	if err != nil {
 		log.Fatalln(errors.Wrap(err, "illegal config"))
@@ -91,10 +90,10 @@ func init() {
 }
 
 func main() {
-    err := vSphereCustomClone("evan-test", []string{"Ubuntu 22.04 Blank", "Windows 10 Blank"}, true, "edeters")
-    if err != nil {
-        log.Fatalln(errors.Wrap(err, "Error cloning VMs"))
-    }
+	err := vSphereCustomClone("evan-test", []string{"Ubuntu 22.04 Blank", "Windows 10 Blank"}, true, "edeters")
+	if err != nil {
+		log.Fatalln(errors.Wrap(err, "Error cloning VMs"))
+	}
 
 	go refreshSession()
 
@@ -123,17 +122,13 @@ func main() {
 	private.Use(authRequired)
 	addPrivateRoutes(private)
 
-	if mainConfig.Https {
-		log.Fatalln(router.RunTLS(":"+fmt.Sprint(mainConfig.Port), mainConfig.Cert, mainConfig.Key))
-	} else {
-		log.Fatalln(router.Run(":" + fmt.Sprint(mainConfig.Port)))
-	}
+	log.Fatalln(router.Run(":" + fmt.Sprint(mainConfig.Port)))
 }
 
 func CORSMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.Writer.Header().Set("Content-Type", "application/json")
-		c.Writer.Header().Set("Access-Control-Allow-Origin", mainConfig.DomainName)
+		c.Writer.Header().Set("Access-Control-Allow-Origin", mainConfig.Fqdn)
 		c.Writer.Header().Set("Access-Control-Max-Age", "86400")
 		c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
 		c.Writer.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
@@ -180,10 +175,10 @@ func InitializeGovmomi() {
 	targetResourcePool, err = finder.ResourcePool(vSphereClient.ctx, vCenterConfig.TargetResourcePool)
 	fmt.Fprintln(os.Stdout, []any{"Initialized"}...)
 
-    pg, err := finder.Network(vSphereClient.ctx, vCenterConfig.WanPortGroup)
-    if err != nil {
-        log.Fatalln(errors.Wrap(err, "Error finding WAN port group"))
-    }
+	pg, err := finder.Network(vSphereClient.ctx, vCenterConfig.WanPortGroup)
+	if err != nil {
+		log.Fatalln(errors.Wrap(err, "Error finding WAN port group"))
+	}
 
-    wanPG = object.NewDistributedVirtualPortgroup(vSphereClient.client, pg.Reference())
+	wanPG = object.NewDistributedVirtualPortgroup(vSphereClient.client, pg.Reference())
 }
