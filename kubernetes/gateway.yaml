@@ -14,7 +14,7 @@ spec:
     hosts:
     - "goclone.sdc.cpp"
   - port:
-      number: 8443
+      number: 443
       name: https
       protocol: HTTPS
     hosts:
