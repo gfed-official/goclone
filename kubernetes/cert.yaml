@@ -11,4 +11,4 @@ spec:
     name: my-ca-issuer
   privateKey:
     rotationPolicy: Always
-  secretName: root-secret
+  secretName: goclone-tls
