@@ -6,7 +6,8 @@ metadata:
 spec:
   dnsNames:
   - "*.sdc.cpp"
+  isCA: false
   issuerRef:
     kind: ClusterIssuer
-    name: selfsigned-issuer
+    name: wildcard-deployment-tls
   secretName: goclone-tls
