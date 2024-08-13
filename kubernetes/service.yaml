@@ -3,12 +3,11 @@ kind: Service
 metadata:
   name: goclone-svc
   namespace: goclone
-  annotations:
-    external-dns.alpha.kubernetes.io/hostname: goclone.sdc.cpp
 spec:
   selector:
     app: goclone
   ports:
-    - protocol: TCP
+    - name: http-goclone
+      protocol: TCP
       port: 8080
       targetPort: 8080
