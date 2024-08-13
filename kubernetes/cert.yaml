@@ -1,0 +1,14 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: argocd
+  namespace: goclone
+spec:
+  dnsNames:
+  - goclone.sdc.cpp
+  issuerRef:
+    kind: ClusterIssuer
+    name: selfsigned-issuer
+  privateKey:
+    rotationPolicy: Always
+  secretName: goclone-tls

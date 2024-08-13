@@ -13,3 +13,12 @@ spec:
       protocol: HTTP
     hosts:
     - "goclone.sdc.cpp"
+  - port:
+      number: 443
+      name: https
+      protocol: HTTPS
+    hosts:
+    - "goclone.sdc.cpp"
+    tls:
+      mode: SIMPLE
+      credentialName: goclone-tls
