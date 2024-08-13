@@ -8,7 +8,7 @@ spec:
     istio: ingress
   servers:
   - port:
-      number: 81
+      number: 80
       name: http
       protocol: HTTP
     hosts:
