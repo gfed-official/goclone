@@ -8,7 +8,7 @@ spec:
   - goclone.sdc.cpp
   issuerRef:
     kind: ClusterIssuer
-    name: selfsigned-issuer
+    name: my-ca-issuer
   privateKey:
     rotationPolicy: Always
-  secretName: goclone-tls
+  secretName: root-secret
