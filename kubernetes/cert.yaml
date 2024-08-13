@@ -5,10 +5,8 @@ metadata:
   namespace: goclone
 spec:
   dnsNames:
-  - goclone.sdc.cpp
+  - "*.sdc.cpp"
   issuerRef:
     kind: ClusterIssuer
-    name: my-ca-issuer
-  privateKey:
-    rotationPolicy: Always
+    name: selfsigned-issuer
   secretName: goclone-tls
