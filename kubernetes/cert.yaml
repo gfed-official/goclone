@@ -2,7 +2,7 @@ apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
   name: goclone-tls
-  namespace: goclone
+  namespace: istio-ingress
 spec:
   dnsNames:
   - "*.sdc.cpp"
