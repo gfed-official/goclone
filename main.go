@@ -90,11 +90,6 @@ func init() {
 }
 
 func main() {
-	err := vSphereCustomClone("evan-test", []string{"Ubuntu 22.04 Blank", "Windows 10 Blank"}, true, "edeters")
-	if err != nil {
-		log.Fatalln(errors.Wrap(err, "Error cloning VMs"))
-	}
-
 	go refreshSession()
 
 	//setup logging

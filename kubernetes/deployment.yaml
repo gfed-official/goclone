@@ -18,7 +18,7 @@ spec:
     spec:
       containers:
         - name: goclone
-          image: evanjd711/goclone:1.0.1
+          image: evanjd711/goclone:1.0.2
           ports:
             - name: http
               containerPort: 8080
