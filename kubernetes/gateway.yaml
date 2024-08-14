@@ -21,4 +21,4 @@ spec:
     - "goclone.sdc.cpp"
     tls:
       mode: SIMPLE
-      credentialName: goclone-tls
+      credentialName: wildcard-tls
