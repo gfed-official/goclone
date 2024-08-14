@@ -10,6 +10,9 @@ spec:
   - goclone-gateway
   http:
   - name: "goclone-routes"
+    match:
+    - uri:
+        prefix: /api/v1
     route:
     - destination:
         port:
