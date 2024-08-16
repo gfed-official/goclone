@@ -201,7 +201,6 @@ func vSphereGetPods(owner string) ([]models.Pod, error) {
 }
 
 func vSphereTemplateClone(templateId string, username string) error {
-	fmt.Println("Username 2: ", username)
 	err := vSpherePodLimit(username)
 	if err != nil {
 		return err
@@ -254,7 +253,6 @@ func vSphereCustomClone(podName string, vmsToClone []string, nat bool, username 
 }
 
 func TemplateClone(sourceRP, username string, portGroup int) error {
-	fmt.Println("Username 3: ", username)
 	targetRP, pg, newFolder, permission, err := InitializeClone(sourceRP, username, portGroup, false)
 
 	srcRp, err := GetResourcePool(sourceRP)
@@ -319,11 +317,19 @@ func TemplateClone(sourceRP, username string, portGroup int) error {
 	var vmClonesMo []mo.VirtualMachine
 	for _, vm := range vmClones {
 		vmObj := object.NewVirtualMachine(vSphereClient.client, vm.Reference())
-		var vm *mo.VirtualMachine
+		var vm mo.VirtualMachine
+
+		fmt.Println(vmObj.Reference())
+		fmt.Println(vmObj.ObjectName(vSphereClient.ctx))
+
 		err = vmObj.Properties(vSphereClient.ctx, vmObj.Reference(), []string{"name"}, &vm)
-		vmClonesMo = append(vmClonesMo, *vm)
+		if err != nil {
+			log.Println(errors.Wrap(err, "Error getting VM properties"))
+			return err
+		}
+		vmClonesMo = append(vmClonesMo, vm)
 		if strings.Contains(vm.Name, "PodRouter") {
-			router = vm
+			router = &vm
 		}
 	}
 
@@ -431,7 +437,6 @@ func CustomClone(podName string, vmsToClone []string, natted bool, username stri
 }
 
 func InitializeClone(podName, username string, portGroup int, isCustom bool) (*types.ManagedObjectReference, object.NetworkReference, *object.Folder, *types.Permission, error) {
-	fmt.Println("Username 4: ", username)
 	strPortGroup := strconv.Itoa(int(portGroup))
 	pgName := strings.Join([]string{strPortGroup, vCenterConfig.PortGroupSuffix}, "_")
 	tagName := strings.Join([]string{strPortGroup, podName, username}, "_")

@@ -18,7 +18,7 @@ data:
   WAN_PORT_GROUP: "0040_RvBCoreNetwork"
   MAX_POD_LIMIT: "5"
   MAIN_DISTRIBUTED_SWITCH: "Main_DSW"
-  TEMPLATE_FOLDER: "/StudentDatacenter/vm/08-Goclone"
+  TEMPLATE_FOLDER: "/StudentDatacenter/vm/Templates"
   PORT_GROUP_SUFFIX: "PodNetwork"
   NATTED_ROUTER_PATH: "/StudentDatacenter/vm/Templates/Networking/1:1NAT_VyOS_PodRouter"
   CLONE_ROLE: "07_KaminoUsers"

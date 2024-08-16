@@ -168,6 +168,9 @@ func InitializeGovmomi() {
 	}
 
 	templateFolder, err = finder.Folder(vSphereClient.ctx, vCenterConfig.TemplateFolder)
+	if err != nil {
+		log.Fatalln(errors.Wrap(err, "Error finding template folder"))
+	}
 
 	tagManager = tags.NewManager(vSphereClient.restClient)
 
