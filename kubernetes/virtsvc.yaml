@@ -27,5 +27,5 @@ spec:
     - destination:
         port:
           number: 8080
-        host: goclone-v2-svc
+        host: goclone-svc
         subset: v2
