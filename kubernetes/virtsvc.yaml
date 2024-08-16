@@ -17,8 +17,6 @@ spec:
         host: goclone-svc
         subset: v1
       weight: 75
-  - name: "goclone-testing-routes"
-    route:
     - destination:
         port:
           number: 8080
