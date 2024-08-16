@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -117,6 +118,8 @@ func invokePodCloneFromTemplate(c *gin.Context) {
 
 	template := jsonData["template"].(string)
 	username := "edeters" //getUser(c)
+
+	fmt.Println("Username 1: ", username)
 
 	err = vSphereTemplateClone(template, username)
 	if err != nil {

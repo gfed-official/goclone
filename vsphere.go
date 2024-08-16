@@ -201,6 +201,7 @@ func vSphereGetPods(owner string) ([]models.Pod, error) {
 }
 
 func vSphereTemplateClone(templateId string, username string) error {
+	fmt.Println("Username 2: ", username)
 	err := vSpherePodLimit(username)
 	if err != nil {
 		return err
@@ -253,6 +254,7 @@ func vSphereCustomClone(podName string, vmsToClone []string, nat bool, username 
 }
 
 func TemplateClone(sourceRP, username string, portGroup int) error {
+	fmt.Println("Username 3: ", username)
 	targetRP, pg, newFolder, permission, err := InitializeClone(sourceRP, username, portGroup, false)
 
 	srcRp, err := GetResourcePool(sourceRP)
@@ -429,6 +431,7 @@ func CustomClone(podName string, vmsToClone []string, natted bool, username stri
 }
 
 func InitializeClone(podName, username string, portGroup int, isCustom bool) (*types.ManagedObjectReference, object.NetworkReference, *object.Folder, *types.Permission, error) {
+	fmt.Println("Username 4: ", username)
 	strPortGroup := strconv.Itoa(int(portGroup))
 	pgName := strings.Join([]string{strPortGroup, vCenterConfig.PortGroupSuffix}, "_")
 	tagName := strings.Join([]string{strPortGroup, podName, username}, "_")

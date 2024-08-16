@@ -27,6 +27,7 @@ spec:
               port: 8080
             initialDelaySeconds: 5
             periodSeconds: 3
+          imagePullPolicy: Always
           env:
             - name: VCENTER_USERNAME
               valueFrom:
