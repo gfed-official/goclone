@@ -244,16 +244,16 @@ func vSphereCustomClone(podName string, vmsToClone []string, nat bool, username 
 	}
 	availablePortGroups.Mu.Unlock()
 
-    err = CustomClone(podName, vmsToClone, nat, username, nextAvailablePortGroup)
-    if err != nil {
-        return err
-    }
+	err = CustomClone(podName, vmsToClone, nat, username, nextAvailablePortGroup)
+	if err != nil {
+		return err
+	}
 
 	return nil
 }
 
 func TemplateClone(sourceRP, username string, portGroup int) error {
-    targetRP, pg, newFolder, err := InitializeClone(sourceRP, username, portGroup)
+	targetRP, pg, newFolder, permission, err := InitializeClone(sourceRP, username, portGroup, false)
 
 	srcRp, err := GetResourcePool(sourceRP)
 	if err != nil {
@@ -308,18 +308,18 @@ func TemplateClone(sourceRP, username string, portGroup int) error {
 	pgStr := strconv.Itoa(portGroup)
 	CloneVMs(vms, newFolder, targetRP.Reference(), datastore.Reference(), pg.Reference(), pgStr)
 
-    vmClones, err := newFolder.Children(vSphereClient.ctx)
-    if err != nil {
-        log.Println(errors.Wrap(err, "Error getting children"))
-        return err
-    }
+	vmClones, err := newFolder.Children(vSphereClient.ctx)
+	if err != nil {
+		log.Println(errors.Wrap(err, "Error getting children"))
+		return err
+	}
 
-    var vmClonesMo []mo.VirtualMachine
+	var vmClonesMo []mo.VirtualMachine
 	for _, vm := range vmClones {
-        vmObj := object.NewVirtualMachine(vSphereClient.client, vm.Reference())
-        var vm *mo.VirtualMachine
-        err = vmObj.Properties(vSphereClient.ctx, vmObj.Reference(), []string{"name"}, &vm)
-        vmClonesMo = append(vmClonesMo, *vm)
+		vmObj := object.NewVirtualMachine(vSphereClient.client, vm.Reference())
+		var vm *mo.VirtualMachine
+		err = vmObj.Properties(vSphereClient.ctx, vmObj.Reference(), []string{"name"}, &vm)
+		vmClonesMo = append(vmClonesMo, *vm)
 		if strings.Contains(vm.Name, "PodRouter") {
 			router = vm
 		}
@@ -333,10 +333,10 @@ func TemplateClone(sourceRP, username string, portGroup int) error {
 		}
 
 		if natted {
-            pgOctet, err := GetNatOctet(strconv.Itoa(portGroup))
-            if err != nil {
-                return err
-            }
+			pgOctet, err := GetNatOctet(strconv.Itoa(portGroup))
+			if err != nil {
+				return err
+			}
 			program := types.GuestProgramSpec{
 				ProgramPath: vCenterConfig.RouterProgram,
 				Arguments:   fmt.Sprintf(vCenterConfig.RouterProgramArgs, pgOctet),
@@ -354,112 +354,130 @@ func TemplateClone(sourceRP, username string, portGroup int) error {
 		}
 	}
 	SnapshotVMs(vmClonesMo, "Base")
+	AssignPermissionToObjects(permission, []types.ManagedObjectReference{newFolder.Reference()})
 	return nil
 }
 
 func CustomClone(podName string, vmsToClone []string, natted bool, username string, portGroup int) error {
-    targetRP, pg, newFolder, err := InitializeClone(podName, username, portGroup)
-    if err != nil {
-        log.Println(errors.Wrap(err, "Error initializing clone"))
-        return err
-    }
-    var vms []mo.VirtualMachine
-    for _, vm := range vmsToClone {
-        vmObj, err := finder.VirtualMachine(vSphereClient.ctx, vm)
-        if err != nil {
-            log.Println(errors.Wrap(err, "Error finding VM"))
-            return err
-        }
-        var vmMo mo.VirtualMachine
-        err = vmObj.Properties(vSphereClient.ctx, vmObj.Reference(), []string{"name"}, &vmMo)
-        if err != nil {
-            log.Println(errors.Wrap(err, "Error getting VM properties"))
-            return err
-        }
-        vms = append(vms, vmMo)
-    }
+	targetRP, pg, newFolder, permission, err := InitializeClone(podName, username, portGroup, true)
+	if err != nil {
+		log.Println(errors.Wrap(err, "Error initializing clone"))
+		return err
+	}
+	var vms []mo.VirtualMachine
+	for _, vm := range vmsToClone {
+		vmObj, err := finder.VirtualMachine(vSphereClient.ctx, vm)
+		if err != nil {
+			log.Println(errors.Wrap(err, "Error finding VM"))
+			return err
+		}
+		var vmMo mo.VirtualMachine
+		err = vmObj.Properties(vSphereClient.ctx, vmObj.Reference(), []string{"name"}, &vmMo)
+		if err != nil {
+			log.Println(errors.Wrap(err, "Error getting VM properties"))
+			return err
+		}
+		vms = append(vms, vmMo)
+	}
 
-    pgStr := strconv.Itoa(portGroup)
-    CloneVMsFromTemplates(vms, newFolder, targetRP.Reference(), datastore.Reference(), pg.Reference(), pgStr)
+	pgStr := strconv.Itoa(portGroup)
+	CloneVMsFromTemplates(vms, newFolder, targetRP.Reference(), datastore.Reference(), pg.Reference(), pgStr)
 
-    router, err := CreateRouter(targetRP.Reference(), datastore.Reference(), newFolder, natted)
-    vms = append(vms, *router)
+	router, err := CreateRouter(targetRP.Reference(), datastore.Reference(), newFolder, natted)
+	vms = append(vms, *router)
 
-    vmClones, err := newFolder.Children(vSphereClient.ctx)
-    if err != nil {
-        log.Println(errors.Wrap(err, "Error getting children"))
-        return err
-    }
+	vmClones, err := newFolder.Children(vSphereClient.ctx)
+	if err != nil {
+		log.Println(errors.Wrap(err, "Error getting children"))
+		return err
+	}
 
-    var vmClonesMo []mo.VirtualMachine
-    for _, vm := range vmClones {
-        vmObj := object.NewVirtualMachine(vSphereClient.client, vm.Reference())
-        var vm *mo.VirtualMachine
-        err = vmObj.Properties(vSphereClient.ctx, vmObj.Reference(), []string{"name"}, &vm)
-        vmClonesMo = append(vmClonesMo, *vm)
-    }
+	var vmClonesMo []mo.VirtualMachine
+	for _, vm := range vmClones {
+		vmObj := object.NewVirtualMachine(vSphereClient.client, vm.Reference())
+		var vm *mo.VirtualMachine
+		err = vmObj.Properties(vSphereClient.ctx, vmObj.Reference(), []string{"name"}, &vm)
+		vmClonesMo = append(vmClonesMo, *vm)
+	}
 
-    if natted {
-        pgOctet, err := GetNatOctet(strconv.Itoa(portGroup))
-        if err != nil {
-            return err
-        }
-        program := types.GuestProgramSpec{
-            ProgramPath: vCenterConfig.RouterProgram,
-            Arguments:   fmt.Sprintf(vCenterConfig.RouterProgramArgs, pgOctet),
-        }
+	if natted {
+		pgOctet, err := GetNatOctet(strconv.Itoa(portGroup))
+		if err != nil {
+			return err
+		}
+		program := types.GuestProgramSpec{
+			ProgramPath: vCenterConfig.RouterProgram,
+			Arguments:   fmt.Sprintf(vCenterConfig.RouterProgramArgs, pgOctet),
+		}
 
-        auth := types.NamePasswordAuthentication{
-            Username: vCenterConfig.RouterUsername,
-            Password: vCenterConfig.RouterPassword,
-        }
+		auth := types.NamePasswordAuthentication{
+			Username: vCenterConfig.RouterUsername,
+			Password: vCenterConfig.RouterPassword,
+		}
 
-        err = RunProgramOnVM(router, program, auth)
-        if err != nil {
-            log.Println(errors.Wrap(err, "Error running program on router"))
-            return err
-        }
-    }
-    SnapshotVMs(vmClonesMo, "Base")
+		err = RunProgramOnVM(router, program, auth)
+		if err != nil {
+			log.Println(errors.Wrap(err, "Error running program on router"))
+			return err
+		}
+	}
+	SnapshotVMs(vmClonesMo, "Base")
 
-    return nil
+	AssignPermissionToObjects(permission, []types.ManagedObjectReference{newFolder.Reference()})
+
+	return nil
 }
 
-func InitializeClone(podName, username string, portGroup int) (*types.ManagedObjectReference, object.NetworkReference, *object.Folder, error) {
+func InitializeClone(podName, username string, portGroup int, isCustom bool) (*types.ManagedObjectReference, object.NetworkReference, *object.Folder, *types.Permission, error) {
 	strPortGroup := strconv.Itoa(int(portGroup))
 	pgName := strings.Join([]string{strPortGroup, vCenterConfig.PortGroupSuffix}, "_")
 	tagName := strings.Join([]string{strPortGroup, podName, username}, "_")
 
+	var permission types.Permission
+	if isCustom {
+		permission = types.Permission{
+			Principal: strings.Join([]string{mainConfig.Domain, username}, "\\"),
+			RoleId:    customCloneRole.RoleId,
+			Propagate: true,
+		}
+	} else {
+		permission = types.Permission{
+			Principal: strings.Join([]string{mainConfig.Domain, username}, "\\"),
+			RoleId:    cloneRole.RoleId,
+			Propagate: true,
+		}
+	}
+
 	tag, err := CreateTag(tagName)
 	if err != nil {
 		log.Println(errors.Wrap(err, "Error creating tag"))
-        return &types.ManagedObjectReference{}, &object.Network{}, &object.Folder{}, err
+		return &types.ManagedObjectReference{}, &object.Network{}, &object.Folder{}, &types.Permission{}, err
 	}
 
 	targetRP, err := CreateResourcePool(tagName)
 	if err != nil {
 		log.Println(errors.Wrap(err, "Error creating resource pool"))
-        return &types.ManagedObjectReference{}, &object.Network{}, &object.Folder{}, err
+		return &types.ManagedObjectReference{}, &object.Network{}, &object.Folder{}, &types.Permission{}, err
 	}
 
 	pg, err := CreatePortGroup(pgName, portGroup)
 	if err != nil {
 		log.Println(errors.Wrap(err, "Error creating portgroup"))
-        return &types.ManagedObjectReference{}, &object.Network{}, &object.Folder{}, err
+		return &types.ManagedObjectReference{}, &object.Network{}, &object.Folder{}, &types.Permission{}, err
 	}
 
 	err = AssignTagToObject(tag, pg)
 	if err != nil {
 		log.Println(errors.Wrap(err, "Error assigning tag"))
-        return &types.ManagedObjectReference{}, &object.Network{}, &object.Folder{}, err
+		return &types.ManagedObjectReference{}, &object.Network{}, &object.Folder{}, &types.Permission{}, err
 	}
 
 	newFolder, err := CreateVMFolder(tagName)
 	if err != nil {
 		log.Println(errors.Wrap(err, "Error creating VM folder"))
-        return &types.ManagedObjectReference{}, &object.Network{}, &object.Folder{}, err
+		return &types.ManagedObjectReference{}, &object.Network{}, &object.Folder{}, &types.Permission{}, err
 	}
-    return &targetRP, pg, newFolder, nil
+	return &targetRP, pg, newFolder, &permission, nil
 }
 
 func DestroyResources(podId string) error {

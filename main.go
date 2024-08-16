@@ -17,6 +17,7 @@ import (
 	"github.com/vmware/govmomi/vim25"
 	"github.com/vmware/govmomi/vim25/mo"
 	"github.com/vmware/govmomi/vim25/soap"
+	"github.com/vmware/govmomi/vim25/types"
 
 	"goclone/models"
 	"os"
@@ -43,6 +44,9 @@ var (
 	tagManager         *tags.Manager
 	targetResourcePool *object.ResourcePool
 	wanPG              *object.DistributedVirtualPortgroup
+	cloneRole          *types.AuthorizationRole
+	customCloneRole    *types.AuthorizationRole
+	authManager        *object.AuthorizationManager
 )
 
 func init() {
@@ -176,4 +180,20 @@ func InitializeGovmomi() {
 	}
 
 	wanPG = object.NewDistributedVirtualPortgroup(vSphereClient.client, pg.Reference())
+
+	authManager = object.NewAuthorizationManager(vSphereClient.client)
+	roles, err := authManager.RoleList(vSphereClient.ctx)
+	if err != nil {
+		log.Fatalln(errors.Wrap(err, "Error listing roles"))
+	}
+
+	for _, role := range roles {
+		if role.Name == vCenterConfig.CloneRole {
+			cloneRole = &role
+		}
+		if role.Name == vCenterConfig.CustomCloneRole {
+			customCloneRole = &role
+		}
+	}
+
 }

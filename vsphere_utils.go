@@ -270,27 +270,27 @@ func CloneVMs(vms []mo.VirtualMachine, folder *object.Folder, resourcePool, ds, 
 }
 
 func CloneVMsFromTemplates(templates []mo.VirtualMachine, folder *object.Folder, resourcePool, ds, pg types.ManagedObjectReference, pgNum string) {
-    var wg sync.WaitGroup
-    for _, template := range templates {
-        vmObj := object.NewVirtualMachine(vSphereClient.client, template.Reference())
-        configSpec, err := ConfigureVMNetwork(vmObj, pg)
-        if err != nil {
-            log.Println(errors.Wrap(err, "Failed to configure VM network"))
-        }
+	var wg sync.WaitGroup
+	for _, template := range templates {
+		vmObj := object.NewVirtualMachine(vSphereClient.client, template.Reference())
+		configSpec, err := ConfigureVMNetwork(vmObj, pg)
+		if err != nil {
+			log.Println(errors.Wrap(err, "Failed to configure VM network"))
+		}
 
-        spec := types.VirtualMachineCloneSpec{
-            Location: types.VirtualMachineRelocateSpec{
-                Datastore:    &ds,
-                Pool:         &resourcePool,
-            },
-            Config: &configSpec,
-        }
+		spec := types.VirtualMachineCloneSpec{
+			Location: types.VirtualMachineRelocateSpec{
+				Datastore: &ds,
+				Pool:      &resourcePool,
+			},
+			Config: &configSpec,
+		}
 
-        folderObj := object.NewFolder(vSphereClient.client, folder.Reference())
-        wg.Add(1)
-        go CloneVM(&wg, template, *folderObj, spec)
-    }
-    wg.Wait()
+		folderObj := object.NewFolder(vSphereClient.client, folder.Reference())
+		wg.Add(1)
+		go CloneVM(&wg, template, *folderObj, spec)
+	}
+	wg.Wait()
 }
 
 func CloneVM(wg *sync.WaitGroup, vm mo.VirtualMachine, folder object.Folder, spec types.VirtualMachineCloneSpec) {
@@ -596,4 +596,16 @@ func SnapshotVM(wg *sync.WaitGroup, vm *mo.VirtualMachine, name string) {
 	if err != nil {
 		log.Println(errors.Wrap(err, "Error waiting for task"))
 	}
+}
+
+func AssignPermissionToObjects(permission *types.Permission, object []types.ManagedObjectReference) error {
+	for _, obj := range object {
+		err := authManager.SetEntityPermissions(vSphereClient.ctx, obj, []types.Permission{*permission})
+		if err != nil {
+			log.Println(errors.Wrap(err, "Error setting entity permissions"))
+			return err
+		}
+	}
+
+	return nil
 }

@@ -38,6 +38,8 @@ type VCenterConfig struct {
 	MainDistributedSwitch      string
 	TemplateFolder             string
 	PortGroupSuffix            string
+	CloneRole                  string
+	CustomCloneRole            string
 	NattedRouterPath           string
 	RouterPath                 string
 	RouterUsername             string
@@ -97,6 +99,8 @@ func ReadConfigFromEnv(conf *Config) error {
 	conf.VCenterConfig.MainDistributedSwitch = os.Getenv("MAIN_DISTRIBUTED_SWITCH")
 	conf.VCenterConfig.TemplateFolder = os.Getenv("TEMPLATE_FOLDER")
 	conf.VCenterConfig.PortGroupSuffix = os.Getenv("PORT_GROUP_SUFFIX")
+	conf.VCenterConfig.CloneRole = os.Getenv("CLONE_ROLE")
+	conf.VCenterConfig.CustomCloneRole = os.Getenv("CUSTOM_CLONE_ROLE")
 	conf.VCenterConfig.NattedRouterPath = os.Getenv("NATTED_ROUTER_PATH")
 	conf.VCenterConfig.RouterPath = os.Getenv("ROUTER_PATH")
 	conf.VCenterConfig.RouterUsername = os.Getenv("ROUTER_USERNAME")
