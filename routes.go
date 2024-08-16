@@ -128,5 +128,5 @@ func invokePodCloneFromTemplate(c *gin.Context) {
 }
 
 func health(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{"statusv2": "ok"})
+	c.JSON(http.StatusOK, gin.H{"status": "ok"})
 }

@@ -114,10 +114,10 @@ func main() {
 	router.MaxMultipartMemory = 8 << 20 // 8Mib
 	initCookies(router)
 
-	public := router.Group("/api/v2")
+	public := router.Group("/api/v1")
 	addPublicRoutes(public)
 
-	private := router.Group("/api/v2")
+	private := router.Group("/api/v1")
 	private.Use(authRequired)
 	addPrivateRoutes(private)
 
