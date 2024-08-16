@@ -10,22 +10,18 @@ spec:
   - goclone-gateway
   http:
   - name: "goclone-v1-routes"
-    match:
-    - uri:
-        prefix: /api/v1/
     route:
     - destination:
         port:
           number: 8080
         host: goclone-svc
         subset: v1
-  - name: "goclone-v2-routes"
-    match:
-    - uri:
-        prefix: /api/v2/
+      weight: 75
+  - name: "goclone-testing-routes"
     route:
     - destination:
         port:
           number: 8080
         host: goclone-svc
-        subset: v2
+        subset: testing
+      weight: 25
