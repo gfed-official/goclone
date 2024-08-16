@@ -21,6 +21,12 @@ spec:
           ports:
             - name: http
               containerPort: 8080
+          livenessProbe:
+            httpGet:
+              path: /api/v1/health
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 3
           env:
             - name: VCENTER_USERNAME
               valueFrom:
