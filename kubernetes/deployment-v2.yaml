@@ -1,7 +1,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: goclone-v1
+  name: goclone-v2
   namespace: goclone
 spec:
   replicas: 1
