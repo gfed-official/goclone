@@ -11,7 +11,7 @@ on:
     # Publish semver tags as releases.
 env:
   # Use docker.io for Docker Hub if empty
-  REGISTRY: hub.docker.com
+  REGISTRY: docker.io
   # github.repository as <account>/<repo>
   IMAGE_NAME: evanjd711/goclone
 
