@@ -253,7 +253,7 @@ func vSphereCustomClone(podName string, vmsToClone []string, nat bool, username 
 }
 
 func TemplateClone(sourceRP, username string, portGroup int) error {
-	targetRP, pg, newFolder, permission, err := InitializeClone(sourceRP, username, portGroup, false)
+	targetRP, pg, newFolder, err := InitializeClone(sourceRP, username, portGroup)
 
 	srcRp, err := GetResourcePool(sourceRP)
 	if err != nil {
@@ -362,12 +362,19 @@ func TemplateClone(sourceRP, username string, portGroup int) error {
 		}
 	}
 	SnapshotVMs(vmClonesMo, "Base")
-	AssignPermissionToObjects(permission, []types.ManagedObjectReference{newFolder.Reference()})
+
+    permission := types.Permission{
+        Principal: strings.Join([]string{mainConfig.Domain, username}, "\\"),
+        RoleId:    cloneRole.RoleId,
+        Propagate: true,
+    }
+	AssignPermissionToObjects(&permission, []types.ManagedObjectReference{newFolder.Reference()})
+
 	return nil
 }
 
 func CustomClone(podName string, vmsToClone []string, natted bool, username string, portGroup int) error {
-	targetRP, pg, newFolder, permission, err := InitializeClone(podName, username, portGroup, true)
+	targetRP, pg, newFolder, err := InitializeClone(podName, username, portGroup)
 	if err != nil {
 		log.Println(errors.Wrap(err, "Error initializing clone"))
 		return err
@@ -403,9 +410,9 @@ func CustomClone(podName string, vmsToClone []string, natted bool, username stri
 	var vmClonesMo []mo.VirtualMachine
 	for _, vm := range vmClones {
 		vmObj := object.NewVirtualMachine(vSphereClient.client, vm.Reference())
-		var vm *mo.VirtualMachine
+		var vm mo.VirtualMachine
 		err = vmObj.Properties(vSphereClient.ctx, vmObj.Reference(), []string{"name"}, &vm)
-		vmClonesMo = append(vmClonesMo, *vm)
+		vmClonesMo = append(vmClonesMo, vm)
 	}
 
 	if natted {
@@ -431,61 +438,51 @@ func CustomClone(podName string, vmsToClone []string, natted bool, username stri
 	}
 	SnapshotVMs(vmClonesMo, "Base")
 
-	AssignPermissionToObjects(permission, []types.ManagedObjectReference{newFolder.Reference()})
+    permission := types.Permission{
+        Principal: strings.Join([]string{mainConfig.Domain, username}, "\\"),
+        RoleId:    customCloneRole.RoleId,
+        Propagate: true,
+    }
+	AssignPermissionToObjects(&permission, []types.ManagedObjectReference{newFolder.Reference()})
 
 	return nil
 }
 
-func InitializeClone(podName, username string, portGroup int, isCustom bool) (*types.ManagedObjectReference, object.NetworkReference, *object.Folder, *types.Permission, error) {
+func InitializeClone(podName, username string, portGroup int) (*types.ManagedObjectReference, object.NetworkReference, *object.Folder, error) {
 	strPortGroup := strconv.Itoa(int(portGroup))
 	pgName := strings.Join([]string{strPortGroup, vCenterConfig.PortGroupSuffix}, "_")
 	tagName := strings.Join([]string{strPortGroup, podName, username}, "_")
 
-	var permission types.Permission
-	if isCustom {
-		permission = types.Permission{
-			Principal: strings.Join([]string{mainConfig.Domain, username}, "\\"),
-			RoleId:    customCloneRole.RoleId,
-			Propagate: true,
-		}
-	} else {
-		permission = types.Permission{
-			Principal: strings.Join([]string{mainConfig.Domain, username}, "\\"),
-			RoleId:    cloneRole.RoleId,
-			Propagate: true,
-		}
-	}
-
 	tag, err := CreateTag(tagName)
 	if err != nil {
 		log.Println(errors.Wrap(err, "Error creating tag"))
-		return &types.ManagedObjectReference{}, &object.Network{}, &object.Folder{}, &types.Permission{}, err
+		return &types.ManagedObjectReference{}, &object.Network{}, &object.Folder{}, err
 	}
 
 	targetRP, err := CreateResourcePool(tagName)
 	if err != nil {
 		log.Println(errors.Wrap(err, "Error creating resource pool"))
-		return &types.ManagedObjectReference{}, &object.Network{}, &object.Folder{}, &types.Permission{}, err
+		return &types.ManagedObjectReference{}, &object.Network{}, &object.Folder{}, err
 	}
 
 	pg, err := CreatePortGroup(pgName, portGroup)
 	if err != nil {
 		log.Println(errors.Wrap(err, "Error creating portgroup"))
-		return &types.ManagedObjectReference{}, &object.Network{}, &object.Folder{}, &types.Permission{}, err
+		return &types.ManagedObjectReference{}, &object.Network{}, &object.Folder{}, err
 	}
 
 	err = AssignTagToObject(tag, pg)
 	if err != nil {
 		log.Println(errors.Wrap(err, "Error assigning tag"))
-		return &types.ManagedObjectReference{}, &object.Network{}, &object.Folder{}, &types.Permission{}, err
+		return &types.ManagedObjectReference{}, &object.Network{}, &object.Folder{}, err
 	}
 
 	newFolder, err := CreateVMFolder(tagName)
 	if err != nil {
 		log.Println(errors.Wrap(err, "Error creating VM folder"))
-		return &types.ManagedObjectReference{}, &object.Network{}, &object.Folder{}, &types.Permission{}, err
+		return &types.ManagedObjectReference{}, &object.Network{}, &object.Folder{}, err
 	}
-	return &targetRP, pg, newFolder, &permission, nil
+	return &targetRP, pg, newFolder, nil
 }
 
 func DestroyResources(podId string) error {

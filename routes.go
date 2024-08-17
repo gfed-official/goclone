@@ -15,11 +15,6 @@ func addPublicRoutes(g *gin.RouterGroup) {
 	g.GET("/health", health)
 	g.DELETE("/pod/delete/:podId", deletePod)
 	g.POST("/pod/clone/template", invokePodCloneFromTemplate)
-}
-
-func addPrivateRoutes(g *gin.RouterGroup) {
-	g.GET("/logout", logout)
-
 	// user
 	g.GET("/view/pods", getPods)
 
@@ -29,6 +24,21 @@ func addPrivateRoutes(g *gin.RouterGroup) {
 
 	// clone
 	g.POST("/pod/clone/custom", invokePodCloneCustom)
+}
+
+func addPrivateRoutes(g *gin.RouterGroup) {
+	g.GET("/logout", logout)
+
+	/* user
+	g.GET("/view/pods", getPods)
+
+	// system
+	g.GET("/view/templates/preset", getPresetTemplates)
+	g.GET("/view/templates/custom", getCustomTemplates)
+
+	// clone
+	g.POST("/pod/clone/custom", invokePodCloneCustom)
+    */
 }
 
 // func pageData(c *gin.Context, title string, ginMap gin.H) gin.H {
