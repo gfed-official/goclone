@@ -126,7 +126,7 @@ func invokePodCloneFromTemplate(c *gin.Context) {
 	}
 
 	template := jsonData["template"].(string)
-	username := "edeters" //getUser(c)
+	username := getUser(c)
 
 	err = vSphereTemplateClone(template, username)
 	if err != nil {
