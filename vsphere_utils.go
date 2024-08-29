@@ -188,6 +188,50 @@ func GetVMsInResourcePool(rp types.ManagedObjectReference) ([]mo.VirtualMachine,
 	return vms, nil
 }
 
+func GetVMsToHide(vms []mo.VirtualMachine) ([]*mo.VirtualMachine, error) {
+    var wg sync.WaitGroup
+    var hiddenVMs []*mo.VirtualMachine
+    for _, vm := range vms {
+        wg.Add(1)
+        go IsHidden(&wg, &vm, &hiddenVMs)
+    }
+    wg.Wait()
+    return hiddenVMs, nil
+}
+
+func IsHidden(wg *sync.WaitGroup, vm *mo.VirtualMachine, hiddenVMs *[]*mo.VirtualMachine) {
+    defer wg.Done()
+    tags, err := GetTagsFromObject(vm.Reference())
+    if err != nil {
+        log.Println(errors.Wrap(err, "Failed to get tags"))
+    }
+
+    for _, tag := range tags {
+        if tag.Name == "hidden" {
+            *hiddenVMs = append(*hiddenVMs, vm)
+        }
+    }
+}
+
+func HideVMs(vms []*mo.VirtualMachine, username string) {
+    var wg sync.WaitGroup
+    for _, vm := range vms {
+        wg.Add(1)
+        go HideVM(&wg, vm, username)
+    }
+    wg.Wait()
+}
+
+func HideVM(wg *sync.WaitGroup, vm *mo.VirtualMachine, username string) {
+    defer wg.Done()
+    permission := types.Permission{
+        Principal: strings.Join([]string{mainConfig.Domain, username}, "\\"),
+        RoleId:    noAccessRole.RoleId,
+        Propagate: true,
+    }
+	AssignPermissionToObjects(&permission, []types.ManagedObjectReference{vm.Reference()})
+}
+
 func CreateSnapshot(vms []mo.VirtualMachine, name string) error {
 	for _, vm := range vms {
 		vm := object.NewVirtualMachine(vSphereClient.client, vm.Reference())

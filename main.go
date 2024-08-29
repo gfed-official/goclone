@@ -46,6 +46,7 @@ var (
 	wanPG              *object.DistributedVirtualPortgroup
 	cloneRole          *types.AuthorizationRole
 	customCloneRole    *types.AuthorizationRole
+    noAccessRole       *types.AuthorizationRole
 	authManager        *object.AuthorizationManager
 )
 
@@ -197,6 +198,9 @@ func InitializeGovmomi() {
 		if role.Name == vCenterConfig.CustomCloneRole {
 			customCloneRole = &role
 		}
+        if role.Name == "NoAccess" {
+            noAccessRole = &role
+        }
 	}
 
 }
