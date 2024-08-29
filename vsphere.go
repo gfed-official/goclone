@@ -305,6 +305,12 @@ func TemplateClone(sourceRP, username string, portGroup int) error {
 		return err
 	}
 
+    vmsToHide, err := GetVMsToHide(vms)
+    if err != nil {
+        log.Println(errors.Wrap(err, "Error getting VMs to hide"))
+        return err
+    }
+
 	pgStr := strconv.Itoa(portGroup)
 	CloneVMs(vms, newFolder, targetRP.Reference(), datastore.Reference(), pg.Reference(), pgStr)
 
@@ -369,6 +375,8 @@ func TemplateClone(sourceRP, username string, portGroup int) error {
         Propagate: true,
     }
 	AssignPermissionToObjects(&permission, []types.ManagedObjectReference{newFolder.Reference()})
+
+    HideVMs(vmsToHide, username)
 
 	return nil
 }
