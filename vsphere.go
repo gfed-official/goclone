@@ -376,7 +376,7 @@ func TemplateClone(sourceRP, username string, portGroup int) error {
     }
 	AssignPermissionToObjects(&permission, []types.ManagedObjectReference{newFolder.Reference()})
 
-    HideVMs(vmsToHide, username)
+    HideVMs(vmsToHide, vmClonesMo, username)
 
 	return nil
 }

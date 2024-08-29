@@ -202,7 +202,7 @@ func GetVMsToHide(vms []mo.VirtualMachine) ([]*mo.VirtualMachine, error) {
 
 func IsHidden(wg *sync.WaitGroup, vm *mo.VirtualMachine, hiddenVMs *[]*mo.VirtualMachine) {
     defer wg.Done()
-    fmt.Println("Checking if VM is hidden")
+    fmt.Println("Checking if VM is hidden", vm.Name)
     tags, err := GetTagsFromObject(vm.Reference())
     if err != nil {
         log.Println(errors.Wrap(err, "Failed to get tags"))
@@ -217,13 +217,17 @@ func IsHidden(wg *sync.WaitGroup, vm *mo.VirtualMachine, hiddenVMs *[]*mo.Virtua
     }
 }
 
-func HideVMs(vms []*mo.VirtualMachine, username string) {
+func HideVMs(vmsToHide []*mo.VirtualMachine, clonedVMs []mo.VirtualMachine, username string) {
     fmt.Println("Hiding VMs")
     var wg sync.WaitGroup
-    for _, vm := range vms {
-        fmt.Println("Hiding VM: ", vm.Name)
-        wg.Add(1)
-        go HideVM(&wg, vm, username)
+    for _, vm := range vmsToHide {
+        for _, clonedVM := range clonedVMs {
+            if vm.Name == clonedVM.Name {
+                fmt.Println("Hiding VM: ", vm.Name)
+                wg.Add(1)
+                go HideVM(&wg, &clonedVM, username)
+            }
+        }
     }
     wg.Wait()
 }
