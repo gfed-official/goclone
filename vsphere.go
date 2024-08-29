@@ -403,7 +403,7 @@ func CustomClone(podName string, vmsToClone []string, natted bool, username stri
 	pgStr := strconv.Itoa(portGroup)
 	CloneVMsFromTemplates(vms, newFolder, targetRP.Reference(), datastore.Reference(), pg.Reference(), pgStr)
 
-	router, err := CreateRouter(targetRP.Reference(), datastore.Reference(), newFolder, natted)
+	router, err := CreateRouter(targetRP.Reference(), datastore.Reference(), newFolder, natted, podName)
 	vms = append(vms, *router)
 
 	vmClones, err := newFolder.Children(vSphereClient.ctx)
