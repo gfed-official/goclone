@@ -294,7 +294,7 @@ func TemplateClone(sourceRP, username string, portGroup int) error {
 				return false
 			}
 		}) {
-			router, err = CreateRouter(srcRp.Reference(), datastore.Reference(), templateFolder, natted)
+			router, err = CreateRouter(srcRp.Reference(), datastore.Reference(), templateFolder, natted, sourceRP)
 			vms = append(vms, *router)
 		}
 	}

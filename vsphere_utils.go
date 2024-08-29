@@ -382,23 +382,15 @@ func ConfigureVMNetwork(vmObj *object.VirtualMachine, pg types.ManagedObjectRefe
 	return configSpec, nil
 }
 
-func CreateRouter(srcRP, ds types.ManagedObjectReference, folder *object.Folder, natted bool) (*mo.VirtualMachine, error) {
+func CreateRouter(srcRP, ds types.ManagedObjectReference, folder *object.Folder, natted bool, rpName string) (*mo.VirtualMachine, error) {
 	var templateName, cloneName string
-
-    srcRPObj := object.NewResourcePool(vSphereClient.client, srcRP)
-    rpData := mo.ResourcePool{}
-    pc := property.DefaultCollector(vSphereClient.client)
-    err := pc.Retrieve(vSphereClient.ctx, []types.ManagedObjectReference{srcRP}, []string{"name"}, &rpData) 
-    if err != nil {
-        log.Println(errors.Wrap(err, "Failed to retrieve resource pool"))
-    }
 
 	if natted {
 		templateName = vCenterConfig.NattedRouterPath
-		cloneName = strings.Join([]string{srcRPObj.Name(), "Natted-PodRouter"}, "-")
+		cloneName = strings.Join([]string{rpName, "Natted-PodRouter"}, "-")
 	} else {
 		templateName = vCenterConfig.RouterPath
-		cloneName = strings.Join([]string{srcRPObj.Name(), "PodRouter"}, "-")
+		cloneName = strings.Join([]string{rpName, "PodRouter"}, "-")
 	}
 
 	template, err := finder.VirtualMachine(vSphereClient.ctx, templateName)
