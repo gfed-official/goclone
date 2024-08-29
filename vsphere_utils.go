@@ -189,7 +189,6 @@ func GetVMsInResourcePool(rp types.ManagedObjectReference) ([]mo.VirtualMachine,
 }
 
 func GetVMsToHide(vms []mo.VirtualMachine) ([]*mo.VirtualMachine, error) {
-    fmt.Println("Getting VMs to hide")
     var wg sync.WaitGroup
     var hiddenVMs []*mo.VirtualMachine
     for _, vm := range vms {
@@ -202,7 +201,6 @@ func GetVMsToHide(vms []mo.VirtualMachine) ([]*mo.VirtualMachine, error) {
 
 func IsHidden(wg *sync.WaitGroup, vm *mo.VirtualMachine, hiddenVMs *[]*mo.VirtualMachine) {
     defer wg.Done()
-    fmt.Println("Checking if VM is hidden", vm.Name)
     tags, err := GetTagsFromObject(vm.Reference())
     if err != nil {
         log.Println(errors.Wrap(err, "Failed to get tags"))
@@ -211,7 +209,6 @@ func IsHidden(wg *sync.WaitGroup, vm *mo.VirtualMachine, hiddenVMs *[]*mo.Virtua
     for _, tag := range tags {
         fmt.Println("Tag: ", tag.Name)
         if tag.Name == "hidden" {
-            fmt.Println("Hidden VM found: ", vm.Name)
             *hiddenVMs = append(*hiddenVMs, vm)
         }
     }
@@ -222,7 +219,7 @@ func HideVMs(vmsToHide []*mo.VirtualMachine, clonedVMs []mo.VirtualMachine, user
     var wg sync.WaitGroup
     for _, vm := range vmsToHide {
         for _, clonedVM := range clonedVMs {
-            if vm.Name == clonedVM.Name {
+            if strings.Contains(clonedVM.Name, vm.Name) {
                 fmt.Println("Hiding VM: ", vm.Name)
                 wg.Add(1)
                 go HideVM(&wg, &clonedVM, username)
