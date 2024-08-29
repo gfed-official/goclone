@@ -425,7 +425,7 @@ func CreateRouter(srcRP, ds types.ManagedObjectReference, folder *object.Folder,
 	}
 
 	routerMo := mo.VirtualMachine{}
-	pc = property.DefaultCollector(vSphereClient.client)
+    pc := property.DefaultCollector(vSphereClient.client)
 	err = pc.Retrieve(vSphereClient.ctx, []types.ManagedObjectReference{routerObj.Reference()}, []string{"name"}, &routerMo)
 	if err != nil {
 		log.Println(errors.Wrap(err, "Error retrieving router"))
