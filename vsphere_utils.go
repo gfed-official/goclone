@@ -189,6 +189,7 @@ func GetVMsInResourcePool(rp types.ManagedObjectReference) ([]mo.VirtualMachine,
 }
 
 func GetVMsToHide(vms []mo.VirtualMachine) ([]*mo.VirtualMachine, error) {
+    fmt.Println("Getting VMs to hide")
     var wg sync.WaitGroup
     var hiddenVMs []*mo.VirtualMachine
     for _, vm := range vms {
@@ -201,21 +202,26 @@ func GetVMsToHide(vms []mo.VirtualMachine) ([]*mo.VirtualMachine, error) {
 
 func IsHidden(wg *sync.WaitGroup, vm *mo.VirtualMachine, hiddenVMs *[]*mo.VirtualMachine) {
     defer wg.Done()
+    fmt.Println("Checking if VM is hidden")
     tags, err := GetTagsFromObject(vm.Reference())
     if err != nil {
         log.Println(errors.Wrap(err, "Failed to get tags"))
     }
 
     for _, tag := range tags {
+        fmt.Println("Tag: ", tag.Name)
         if tag.Name == "hidden" {
+            fmt.Println("Hidden VM found: ", vm.Name)
             *hiddenVMs = append(*hiddenVMs, vm)
         }
     }
 }
 
 func HideVMs(vms []*mo.VirtualMachine, username string) {
+    fmt.Println("Hiding VMs")
     var wg sync.WaitGroup
     for _, vm := range vms {
+        fmt.Println("Hiding VM: ", vm.Name)
         wg.Add(1)
         go HideVM(&wg, vm, username)
     }
@@ -229,7 +235,10 @@ func HideVM(wg *sync.WaitGroup, vm *mo.VirtualMachine, username string) {
         RoleId:    noAccessRole.RoleId,
         Propagate: true,
     }
-	AssignPermissionToObjects(&permission, []types.ManagedObjectReference{vm.Reference()})
+    err := AssignPermissionToObjects(&permission, []types.ManagedObjectReference{vm.Reference()})
+    if err != nil {
+        log.Println(errors.Wrap(err, "Failed to assign permission to VM"))
+    }
 }
 
 func CreateSnapshot(vms []mo.VirtualMachine, name string) error {
