@@ -325,9 +325,6 @@ func TemplateClone(sourceRP, username string, portGroup int) error {
 		vmObj := object.NewVirtualMachine(vSphereClient.client, vm.Reference())
 		var vm mo.VirtualMachine
 
-		fmt.Println(vmObj.Reference())
-		fmt.Println(vmObj.ObjectName(vSphereClient.ctx))
-
 		err = vmObj.Properties(vSphereClient.ctx, vmObj.Reference(), []string{"name"}, &vm)
 		if err != nil {
 			log.Println(errors.Wrap(err, "Error getting VM properties"))
