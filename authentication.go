@@ -50,7 +50,6 @@ func login(c *gin.Context) {
 
 	username := jsonData["username"].(string)
 	password := jsonData["password"].(string)
-	// var user models.UserData
 
 	// Validate form input
 	if strings.Trim(username, " ") == "" || strings.Trim(password, " ") == "" {
@@ -125,13 +124,12 @@ func register(c *gin.Context) {
 		return
 	}
 
-	message, err := registerUser(username, password)
+	err := ldapClient.registerUser(username, password)
 
-	if err != 0 {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": message})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": message})
-
+	c.JSON(http.StatusOK, gin.H{"message": "User registered successfully!"})
 }

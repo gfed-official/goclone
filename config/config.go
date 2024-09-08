@@ -1,4 +1,4 @@
-package models
+package config
 
 import (
 	"log"
@@ -49,9 +49,12 @@ type VCenterConfig struct {
 }
 
 type LdapConfig struct {
-	LdapAdminDN       string
-	LdapAdminPassword string
-	LdapUri           string
+	BindDN        string
+	BindPassword  string
+	URL           string
+	BaseDN        string
+	InsecureTLS   bool
+	UserAttribute string
 }
 
 /*

@@ -5,8 +5,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
-
-	"goclone/models"
 )
 
 func addPublicRoutes(g *gin.RouterGroup) {
@@ -86,7 +84,12 @@ func deletePod(c *gin.Context) {
 func invokePodCloneCustom(c *gin.Context) {
 	username := getUser(c)
 
-	var form models.CustomCloneForm
+	var form struct {
+		Name       string   `json:"name"`
+		Nat        bool     `json:"nat"`
+		Vmstoclone []string `json:"vmstoclone"`
+	}
+
 	err := c.ShouldBindJSON(&form)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": errors.Wrap(err, "Missing fields").Error()})

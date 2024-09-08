@@ -19,7 +19,7 @@ import (
 	"github.com/vmware/govmomi/vim25/soap"
 	"github.com/vmware/govmomi/vim25/types"
 
-	"goclone/models"
+	"goclone/config"
 	"os"
 )
 
@@ -30,9 +30,10 @@ type VSphereClient struct {
 }
 
 var (
-	mainConfig    = &models.Config{}
-	vCenterConfig models.VCenterConfig
-	ldapConfig    models.LdapConfig
+	mainConfig    = &config.Config{}
+	vCenterConfig config.VCenterConfig
+	ldapConfig    config.LdapConfig
+	ldapClient    *Client
 )
 
 var (
@@ -46,15 +47,15 @@ var (
 	wanPG              *object.DistributedVirtualPortgroup
 	cloneRole          *types.AuthorizationRole
 	customCloneRole    *types.AuthorizationRole
-    noAccessRole       *types.AuthorizationRole
+	noAccessRole       *types.AuthorizationRole
 	authManager        *object.AuthorizationManager
 )
 
 func init() {
 	// setup config
 
-	models.ReadConfigFromEnv(mainConfig)
-	err := models.CheckConfig(mainConfig)
+	config.ReadConfigFromEnv(mainConfig)
+	err := config.CheckConfig(mainConfig)
 	if err != nil {
 		log.Fatalln(errors.Wrap(err, "illegal config"))
 	}
@@ -91,6 +92,11 @@ func init() {
 	err = vSphereLoadTakenPortGroups()
 	if err != nil {
 		log.Fatalln(errors.Wrap(err, "Error finding taken port groups"))
+	}
+
+	err = ldapClient.Connect()
+	if err != nil {
+		log.Fatalln(errors.Wrap(err, "Error connecting to LDAP"))
 	}
 }
 
@@ -198,9 +204,8 @@ func InitializeGovmomi() {
 		if role.Name == vCenterConfig.CustomCloneRole {
 			customCloneRole = &role
 		}
-        if role.Name == "NoAccess" {
-            noAccessRole = &role
-        }
+		if role.Name == "NoAccess" {
+			noAccessRole = &role
+		}
 	}
-
 }

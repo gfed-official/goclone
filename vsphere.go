@@ -17,13 +17,17 @@ import (
 	"github.com/vmware/govmomi/property"
 	"github.com/vmware/govmomi/vim25/mo"
 	"github.com/vmware/govmomi/vim25/types"
-
-	"goclone/models"
 )
 
 type RWPortGroupMap struct {
 	Mu   sync.Mutex
 	Data map[int]string
+}
+
+type Pod struct {
+	Name          string
+	ResourceGroup string
+	ServerGUID    string
 }
 
 var (
@@ -163,8 +167,8 @@ func vSphereGetCustomTemplates() ([]gin.H, error) {
 	return templates, nil
 }
 
-func vSphereGetPods(owner string) ([]models.Pod, error) {
-	var pods []models.Pod
+func vSphereGetPods(owner string) ([]Pod, error) {
+	var pods []Pod
 
 	ownerPods, err := finder.VirtualAppList(vSphereClient.ctx, fmt.Sprintf("*_%s", owner)) // hard coded based on our naming scheme
 
@@ -194,7 +198,7 @@ func vSphereGetPods(owner string) ([]models.Pod, error) {
 	// err = vSphereClient.RetrieveOne(mainCtx, , nil, &serviceInstance)
 
 	for _, rp := range rps {
-		pods = append(pods, models.Pod{Name: rp.Name, ResourceGroup: rp.Config.Entity.Value, ServerGUID: vSphereClient.client.ServiceContent.About.InstanceUuid})
+		pods = append(pods, Pod{Name: rp.Name, ResourceGroup: rp.Config.Entity.Value, ServerGUID: vSphereClient.client.ServiceContent.About.InstanceUuid})
 	}
 
 	return pods, nil
