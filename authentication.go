@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"regexp"
 	"strings"
+	"unicode"
 
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-contrib/sessions/cookie"
@@ -124,8 +125,7 @@ func register(c *gin.Context) {
 		return
 	}
 
-	matched, _ = regexp.MatchString(`^.*(?=.{8,})(?=.*[a-zA-Z])(?=.*\d).*$`, password)
-	if !matched {
+	if !validatePassword(password) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Password must be at least 8 characters long and contain at least one letter and one number!"})
 		return
 	}
@@ -138,4 +138,21 @@ func register(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "User registered successfully!"})
+}
+
+func validatePassword(password string) bool {
+	var number, letter bool
+	if len(password) < 8 {
+		return false
+	}
+	for _, c := range password {
+		switch {
+		case unicode.IsNumber(c):
+			number = true
+		case unicode.IsLetter(c):
+			letter = true
+		}
+	}
+
+	return number && letter
 }

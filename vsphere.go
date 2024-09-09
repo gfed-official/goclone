@@ -170,7 +170,7 @@ func vSphereGetCustomTemplates() ([]gin.H, error) {
 func vSphereGetPods(owner string) ([]Pod, error) {
 	var pods []Pod
 
-	ownerPods, err := finder.VirtualAppList(vSphereClient.ctx, fmt.Sprintf("*_%s", owner)) // hard coded based on our naming scheme
+	ownerPods, err := finder.ResourcePoolList(vSphereClient.ctx, fmt.Sprintf("*_%s", owner)) // hard coded based on our naming scheme
 
 	// No pods found
 	if err != nil {
@@ -309,11 +309,11 @@ func TemplateClone(sourceRP, username string, portGroup int) error {
 		return err
 	}
 
-    vmsToHide, err := GetVMsToHide(vms)
-    if err != nil {
-        log.Println(errors.Wrap(err, "Error getting VMs to hide"))
-        return err
-    }
+	vmsToHide, err := GetVMsToHide(vms)
+	if err != nil {
+		log.Println(errors.Wrap(err, "Error getting VMs to hide"))
+		return err
+	}
 
 	pgStr := strconv.Itoa(portGroup)
 	CloneVMs(vms, newFolder, targetRP.Reference(), datastore.Reference(), pg.Reference(), pgStr)
@@ -370,14 +370,14 @@ func TemplateClone(sourceRP, username string, portGroup int) error {
 	}
 	SnapshotVMs(vmClonesMo, "Base")
 
-    permission := types.Permission{
-        Principal: strings.Join([]string{mainConfig.Domain, username}, "\\"),
-        RoleId:    cloneRole.RoleId,
-        Propagate: true,
-    }
+	permission := types.Permission{
+		Principal: strings.Join([]string{mainConfig.Domain, username}, "\\"),
+		RoleId:    cloneRole.RoleId,
+		Propagate: true,
+	}
 	AssignPermissionToObjects(&permission, []types.ManagedObjectReference{newFolder.Reference()})
 
-    HideVMs(vmsToHide, vmClonesMo, username)
+	HideVMs(vmsToHide, vmClonesMo, username)
 
 	return nil
 }
@@ -447,11 +447,11 @@ func CustomClone(podName string, vmsToClone []string, natted bool, username stri
 	}
 	SnapshotVMs(vmClonesMo, "Base")
 
-    permission := types.Permission{
-        Principal: strings.Join([]string{mainConfig.Domain, username}, "\\"),
-        RoleId:    customCloneRole.RoleId,
-        Propagate: true,
-    }
+	permission := types.Permission{
+		Principal: strings.Join([]string{mainConfig.Domain, username}, "\\"),
+		RoleId:    customCloneRole.RoleId,
+		Propagate: true,
+	}
 	AssignPermissionToObjects(&permission, []types.ManagedObjectReference{newFolder.Reference()})
 
 	return nil
