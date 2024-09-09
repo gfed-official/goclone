@@ -115,6 +115,7 @@ func ReadConfigFromEnv(conf *Config) error {
 	conf.LdapConfig.BindPassword = os.Getenv("LDAP_BIND_PASSWORD")
 	conf.LdapConfig.URL = os.Getenv("LDAP_URL")
 	conf.LdapConfig.BaseDN = os.Getenv("LDAP_BASE_DN")
+	conf.LdapConfig.UserAttribute = os.Getenv("LDAP_USER_ATTRIBUTE")
 	conf.LdapConfig.InsecureTLS, err = strconv.ParseBool(os.Getenv("LDAP_INSECURE_TLS"))
 	if err != nil {
 		log.Println("Error converting LDAP_INSECURE_TLS to bool")
