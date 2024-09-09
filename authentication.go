@@ -130,7 +130,11 @@ func register(c *gin.Context) {
 		return
 	}
 
-	err := ldapClient.registerUser(username, password)
+	ldapClient := Client{}
+	err := ldapClient.Connect()
+	defer ldapClient.Disconnect()
+
+	err = ldapClient.registerUser(username, password)
 
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})

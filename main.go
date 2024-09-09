@@ -33,7 +33,6 @@ var (
 	mainConfig    = &config.Config{}
 	vCenterConfig config.VCenterConfig
 	ldapConfig    config.LdapConfig
-	ldapClient    *Client
 )
 
 var (
@@ -92,13 +91,6 @@ func init() {
 	err = vSphereLoadTakenPortGroups()
 	if err != nil {
 		log.Fatalln(errors.Wrap(err, "Error finding taken port groups"))
-	}
-
-	ldapClient = &Client{}
-
-	err = ldapClient.Connect()
-	if err != nil {
-		log.Fatalln(errors.Wrap(err, "Error connecting to LDAP"))
 	}
 }
 

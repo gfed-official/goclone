@@ -178,3 +178,21 @@ func (cl *Client) EnableAccount(userdn string) error {
 	req.Replace("userAccountControl", []string{"512"})
 	return cl.ldap.Modify(req)
 }
+
+func (cl *Client) SearchEntry(req *ldap.SearchRequest) (*ldap.Entry, error) {
+	res, err := cl.ldap.Search(req)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to search entry: %v", err)
+	}
+	if len(res.Entries) == 0 {
+		return nil, nil
+	}
+	return res.Entries[0], nil
+}
+
+func (cl *Client) Disconnect() error {
+	if cl.ldap == nil {
+		return nil
+	}
+	return cl.ldap.Close()
+}
