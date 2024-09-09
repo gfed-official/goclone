@@ -430,6 +430,12 @@ func CustomClone(podName string, vmsToClone []string, natted bool, username stri
 		vmClonesMo = append(vmClonesMo, vm)
 	}
 
+	err = ConfigRouter(pg.Reference(), wanPG.Reference(), router, pgStr)
+	if err != nil {
+		log.Println(errors.Wrap(err, "Error cloning router"))
+		return err
+	}
+
 	if natted {
 		pgOctet, err := GetNatOctet(strconv.Itoa(portGroup))
 		if err != nil {
