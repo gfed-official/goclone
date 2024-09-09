@@ -94,6 +94,8 @@ func init() {
 		log.Fatalln(errors.Wrap(err, "Error finding taken port groups"))
 	}
 
+	ldapClient = &Client{}
+
 	err = ldapClient.Connect()
 	if err != nil {
 		log.Fatalln(errors.Wrap(err, "Error connecting to LDAP"))

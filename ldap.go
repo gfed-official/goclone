@@ -41,25 +41,6 @@ func (cl *Client) Connect() error {
 	return nil
 }
 
-func (cl *Client) registerUser(name, password string) error {
-	dn, err := cl.CreateUser(name)
-	if err != nil {
-		return fmt.Errorf("Failed to create user: %v", err)
-	}
-
-	err = cl.SetPassword(dn, password)
-	if err != nil {
-		return fmt.Errorf("Failed to set password: %v", err)
-	}
-
-	err = cl.EnableAccount(dn)
-	if err != nil {
-		return fmt.Errorf("Failed to enable account: %v", err)
-	}
-
-	return nil
-}
-
 func (cl *Client) connect() (ldap.Client, error) {
 	var dialOpts []ldap.DialOpt
 	if strings.HasPrefix(ldapConfig.URL, "ldaps://") {
