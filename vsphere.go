@@ -145,12 +145,15 @@ func vSphereGetCustomTemplates() ([]gin.H, error) {
 
 	for _, subfolderRef := range templateSubfolderRefs {
 		var subfolder []mo.Folder
-		if subfolderRef.Reference().Type == "Folder" {
-			err := pc.Retrieve(vSphereClient.ctx, []types.ManagedObjectReference{subfolderRef.Reference()}, []string{"name", "childEntity"}, &subfolder)
-			if err != nil {
-				return nil, errors.Wrap(err, "Failed to retrieve templates from sub-folders")
-			}
+		if subfolderRef.Reference().Type != templateFolder.Reference().Type {
+			continue
 		}
+
+		err := pc.Retrieve(vSphereClient.ctx, []types.ManagedObjectReference{subfolderRef.Reference()}, []string{"name", "childEntity"}, &subfolder)
+		if err != nil {
+			return nil, errors.Wrap(err, "Failed to retrieve templates from sub-folders")
+		}
+
 		var vms []mo.VirtualMachine
 		for _, vmRef := range subfolder[0].ChildEntity {
 			err := pc.Retrieve(vSphereClient.ctx, []types.ManagedObjectReference{vmRef.Reference()}, []string{"name"}, &vms)
@@ -158,6 +161,7 @@ func vSphereGetCustomTemplates() ([]gin.H, error) {
 				return nil, errors.Wrap(err, "Failed to retrieve VM template")
 			}
 		}
+
 		var vmNames []string
 		for _, vm := range vms {
 			vmNames = append(vmNames, vm.Name)
