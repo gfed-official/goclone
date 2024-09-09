@@ -52,6 +52,11 @@ func (cl *Client) registerUser(name, password string) error {
 		return fmt.Errorf("Failed to set password: %v", err)
 	}
 
+	err = cl.AddToGroup(dn, ldapConfig.GroupDN)
+	if err != nil {
+		return fmt.Errorf("Failed to add user to group: %v", err)
+	}
+
 	err = cl.EnableAccount(dn)
 	if err != nil {
 		return fmt.Errorf("Failed to enable account: %v", err)
@@ -83,6 +88,10 @@ func (cl *Client) CreateUser(name string) (string, error) {
 		Type: "cn",
 		Vals: []string{name},
 	})
+	attributes = append(attributes, ldap.Attribute{
+		Type: "Description",
+		Vals: []string{"Registered by Goclone"},
+	})
 
 	dn := fmt.Sprintf("%s=%s,%s", ldapConfig.UserAttribute, name, ldapConfig.BaseDN)
 
@@ -97,6 +106,12 @@ func (cl *Client) CreateUser(name string) (string, error) {
 	}
 
 	return dn, nil
+}
+
+func (cl *Client) AddToGroup(userdn, groupdn string) error {
+	req := ldap.NewModifyRequest(groupdn, nil)
+	req.Add("member", []string{userdn})
+	return cl.ldap.Modify(req)
 }
 
 func getSupportedControl(conn ldap.Client) ([]string, error) {

@@ -55,6 +55,7 @@ type LdapConfig struct {
 	BaseDN        string
 	InsecureTLS   bool
 	UserAttribute string
+	GroupDN       string
 }
 
 /*
@@ -116,6 +117,7 @@ func ReadConfigFromEnv(conf *Config) error {
 	conf.LdapConfig.URL = os.Getenv("LDAP_URL")
 	conf.LdapConfig.BaseDN = os.Getenv("LDAP_BASE_DN")
 	conf.LdapConfig.UserAttribute = os.Getenv("LDAP_USER_ATTRIBUTE")
+	conf.LdapConfig.GroupDN = os.Getenv("LDAP_GROUP_DN")
 	conf.LdapConfig.InsecureTLS, err = strconv.ParseBool(os.Getenv("LDAP_INSECURE_TLS"))
 	if err != nil {
 		log.Println("Error converting LDAP_INSECURE_TLS to bool")
