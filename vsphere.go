@@ -38,7 +38,7 @@ var (
 
 func refreshSession() {
 	for {
-		time.Sleep(time.Minute * 5)
+		time.Sleep(time.Second * 30)
 
 		err := vSphereLoadTakenPortGroups()
 		if err != nil {
