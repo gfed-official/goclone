@@ -97,8 +97,17 @@ func vSpherePodLimit(username string) error {
 	return nil
 }
 
-func vSphereGetPresetTemplates() ([]string, error) {
+func vSphereGetPresetTemplates(username string) ([]string, error) {
 	var templates []string
+
+	ldapClient := Client{}
+	err := ldapClient.Connect()
+	defer ldapClient.Disconnect()
+
+    isAdm, err := ldapClient.IsAdmin(username)
+    if err != nil {
+        return nil, err
+    }
 
 	templateResourcePool, err := finder.ResourcePool(vSphereClient.ctx, vCenterConfig.PresetTemplateResourcePool)
 
@@ -121,8 +130,19 @@ func vSphereGetPresetTemplates() ([]string, error) {
 	}
 
 	for _, rp := range rps {
-		templates = append(templates, rp.Name)
-	}
+        tagsOnTmpl, err := GetTagsFromObject(rp.Reference())
+        if err != nil {
+            log.Println(errors.Wrap(err, "Error getting tags"))
+            return nil, err
+        }
+
+        for _, tag := range tagsOnTmpl {
+            if tag.Name == "AdminOnly" && !isAdm {
+                continue
+            }
+            templates = append(templates, rp.Name)
+        }
+    }
 
 	return templates, nil
 }

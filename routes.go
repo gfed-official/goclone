@@ -44,7 +44,8 @@ func addPrivateRoutes(g *gin.RouterGroup) {
 // }
 
 func getPresetTemplates(c *gin.Context) {
-	templates, err := vSphereGetPresetTemplates()
+    user := getUser(c)
+	templates, err := vSphereGetPresetTemplates(user)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": errors.Wrap(err, "Template presets failed to load").Error()})
 		return
