@@ -2,9 +2,11 @@ package main
 
 import (
 	"net/http"
+	"net/url"
 
 	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
+	"github.com/vmware/govmomi/vim25/soap"
 )
 
 func addPublicRoutes(g *gin.RouterGroup) {
@@ -131,5 +133,21 @@ func invokePodCloneFromTemplate(c *gin.Context) {
 }
 
 func health(c *gin.Context) {
+    rc, err := vSphereClient.restClient.Session(vSphereClient.ctx)
+    if err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"error": errors.Wrap(err, "Failed to get session").Error()})
+        return
+    }
+
+    if rc == nil {
+        u, _ := soap.ParseURL(vCenterConfig.VCenterURL)
+        u.User = url.UserPassword(vCenterConfig.VCenterUsername, vCenterConfig.VCenterPassword)
+        err = vSphereClient.restClient.Login(vSphereClient.ctx, u.User)
+        if err != nil {
+            c.JSON(http.StatusInternalServerError, gin.H{"error": errors.Wrap(err, "Failed to refresh Rest Client").Error()})
+            return
+        }
+    }
+
 	c.JSON(http.StatusOK, gin.H{"status": "ok"})
 }
