@@ -135,13 +135,16 @@ func vSphereGetPresetTemplates(username string) ([]string, error) {
             log.Println(errors.Wrap(err, "Error getting tags"))
             return nil, err
         }
-
+        tagNames := []string{}
         for _, tag := range tagsOnTmpl {
-            if tag.Name == "AdminOnly" && !isAdm {
-                continue
-            }
-            templates = append(templates, rp.Name)
+            tagNames = append(tagNames, tag.Name)
         }
+
+        if !isAdm && slices.Contains(tagNames, "AdminOnly") {
+            continue
+        }
+
+        templates = append(templates, rp.Name)
     }
 
 	return templates, nil
