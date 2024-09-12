@@ -83,8 +83,11 @@ func deletePod(c *gin.Context) {
 	podId := c.Param("podId")
 
     username := getUser(c)
+    
+    podOwner := strings.Split(podId, "_")
+    podOwner = podOwner[:len(podOwner)-1]
 
-    if strings.ToLower(strings.Split(podId, "_")[1]) != strings.ToLower(username) {
+    if strings.ToLower(podOwner[0]) != strings.ToLower(username) {
         c.JSON(http.StatusBadRequest, gin.H{"error": "You can only delete your own pods"})
         return
     }
