@@ -3,6 +3,7 @@ package main
 import (
 	"net/http"
 	"net/url"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
@@ -29,6 +30,11 @@ func addPrivateRoutes(g *gin.RouterGroup) {
 	g.POST("/pod/clone/custom", invokePodCloneCustom)
 	g.POST("/pod/clone/template", invokePodCloneFromTemplate)
 	g.DELETE("/pod/delete/:podId", deletePod)
+}
+
+func addAdminRoutes(g *gin.RouterGroup) {
+    g.GET("/view/pods", adminGetAllPods)
+    g.DELETE("/pod/delete/:podId", adminDeletePod)
 }
 
 // func pageData(c *gin.Context, title string, ginMap gin.H) gin.H {
@@ -75,6 +81,13 @@ func getPods(c *gin.Context) {
 
 func deletePod(c *gin.Context) {
 	podId := c.Param("podId")
+
+    username := getUser(c)
+
+    if strings.ToLower(strings.Split(podId, "_")[0]) != strings.ToLower(username) {
+        c.JSON(http.StatusBadRequest, gin.H{"error": "You can only delete your own pods"})
+        return
+    }
 
 	err := DestroyResources(podId)
 	if err != nil {

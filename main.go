@@ -122,6 +122,10 @@ func main() {
 	private.Use(authRequired)
 	addPrivateRoutes(private)
 
+    admin := router.Group("/api/v1/admin")
+    admin.Use(authRequired, adminRequired)
+    addAdminRoutes(admin)
+
 	log.Fatalln(router.Run(":" + fmt.Sprint(mainConfig.Port)))
 }
 

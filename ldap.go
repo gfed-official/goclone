@@ -197,6 +197,27 @@ func (cl *Client) Disconnect() error {
 	return cl.ldap.Close()
 }
 
+func (cl *Client) GetUserDN(username string) (string, error) {
+    req := ldap.NewSearchRequest(
+        ldapConfig.BaseDN,
+        ldap.ScopeWholeSubtree, ldap.NeverDerefAliases, 0, 0, false,
+        fmt.Sprintf("(&(objectClass=user)(%s=%s))", "sAMAccountName", username),
+        []string{"dn"},
+        nil,
+    )
+
+    entry, err := cl.SearchEntry(req)
+    if err != nil {
+        return "", fmt.Errorf("Failed to search for user: %v", err)
+    }
+
+    if entry == nil {
+        return "", fmt.Errorf("User not found")
+    }
+
+    return entry.DN, nil
+}
+
 func (cl *Client) IsAdmin(username string) (bool, error) {
     req := ldap.NewSearchRequest(
         ldapConfig.BaseDN,
