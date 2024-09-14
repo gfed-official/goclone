@@ -34,6 +34,7 @@ func addPrivateRoutes(g *gin.RouterGroup) {
 
 func addAdminRoutes(g *gin.RouterGroup) {
     g.GET("/view/pods", adminGetAllPods)
+    g.POST("/pod/clone/bulk", adminBulkClonePods)
     g.DELETE("/pod/delete/:podId", adminDeletePod)
 }
 
@@ -125,6 +126,26 @@ func invokePodCloneCustom(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "Pod deployed successfully!"})
+}
+
+func adminBulkClonePods(c *gin.Context) {
+	var form struct {
+		Template       string   `json:"template"`
+		Users []string `json:"users"`
+	}
+
+	err := c.ShouldBindJSON(&form)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": errors.Wrap(err, "Missing fields").Error()})
+		return
+	}
+
+	err = bulkClonePods(form.Template, form.Users)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": errors.Wrap(err, "Failed to deploy pods").Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Pods deployed successfully!"})
 }
 
 func invokePodCloneFromTemplate(c *gin.Context) {

@@ -244,3 +244,20 @@ func (cl *Client) IsAdmin(username string) (bool, error) {
 
     return false, nil
 }
+
+func (cl *Client) UserExists(username string) (bool, error) {
+    req := ldap.NewSearchRequest(
+        ldapConfig.BaseDN,
+        ldap.ScopeWholeSubtree, ldap.NeverDerefAliases, 0, 0, false,
+        fmt.Sprintf("(&(objectClass=user)(%s=%s))", "sAMAccountName", username),
+        []string{"dn"},
+        nil,
+    )
+
+    entry, err := cl.SearchEntry(req)
+    if err != nil {
+        return false, fmt.Errorf("Failed to search for user: %v", err)
+    }
+
+    return entry != nil, nil
+}
