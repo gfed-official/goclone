@@ -35,7 +35,6 @@ type Template struct {
 	SourceRP  *object.ResourcePool
 	VMs       []mo.VirtualMachine
 	Natted    bool
-	AdminOnly bool
 	NoRouter  bool
 	WanPG     *object.DistributedVirtualPortgroup
 	VMsToHide []*mo.VirtualMachine
@@ -298,64 +297,6 @@ func vSphereCustomClone(podName string, vmsToClone []string, nat bool, username 
 
 func TemplateClone(sourceRP, username string, portGroup int) error {
 	targetRP, pg, newFolder, err := InitializeClone(sourceRP, username, portGroup)
-
-	/*
-		srcRp, err := GetResourcePool(sourceRP)
-		if err != nil {
-			log.Println(errors.Wrap(err, "Error getting resource pool"))
-			return err
-		}
-
-		tagsOnTmpl, err := GetTagsFromObject(srcRp.Reference())
-		if err != nil {
-			log.Println(errors.Wrap(err, "Error getting tags"))
-			return err
-		}
-
-		natted := false
-		noRouter := false
-		for _, tag := range tagsOnTmpl {
-			if tag.Name == "natted" {
-				natted = true
-			}
-			if tag.Name == "NoRouter" {
-				noRouter = true
-			}
-		}
-
-		vms, err := GetVMsInResourcePool(srcRp.Reference())
-		if err != nil {
-			log.Println(errors.Wrap(err, "Error getting VMs in resource pool"))
-			return err
-		}
-
-		var router *mo.VirtualMachine
-		if !noRouter {
-			if !slices.ContainsFunc(vms, func(vm mo.VirtualMachine) bool {
-				if strings.Contains(vm.Name, "PodRouter") {
-					router = &vm
-					return true
-				} else {
-					return false
-				}
-			}) {
-				router, err = CreateRouter(srcRp.Reference(), datastore.Reference(), templateFolder, natted, sourceRP)
-				vms = append(vms, *router)
-			}
-		}
-
-		err = CreateSnapshot(vms, "SnapshotForCloning")
-		if err != nil {
-			log.Println(errors.Wrap(err, "Error creating snapshot"))
-			return err
-		}
-
-		vmsToHide, err := GetVMsToHide(vms)
-		if err != nil {
-			log.Println(errors.Wrap(err, "Error getting VMs to hide"))
-			return err
-		}
-	*/
 
 	pgStr := strconv.Itoa(portGroup)
 	CloneVMs(templateMap[sourceRP].VMs, newFolder, targetRP.Reference(), datastore.Reference(), pg.Reference(), pgStr)
@@ -634,7 +575,6 @@ func LoadTemplate(rp *object.ResourcePool, name string) (Template, error) {
 
 	natted := false
 	noRouter := false
-	adminOnly := false
 	pg := wanPG
 	for _, tag := range tagsOnTmpl {
 		if tag.Name == "natted" {
@@ -642,9 +582,6 @@ func LoadTemplate(rp *object.ResourcePool, name string) (Template, error) {
 		}
 		if tag.Name == "NoRouter" {
 			noRouter = true
-		}
-		if tag.Name == "AdminOnly" {
-			adminOnly = true
 		}
 		if strings.Contains(tag.Name, vCenterConfig.PortGroupSuffix) {
 			pg, err := GetPortGroup(tag.Name)
@@ -694,7 +631,6 @@ func LoadTemplate(rp *object.ResourcePool, name string) (Template, error) {
 		SourceRP:  rp,
 		VMs:       vms,
 		Natted:    natted,
-		AdminOnly: adminOnly,
 		NoRouter:  noRouter,
 		WanPG:     pg,
 		VMsToHide: vmsToHide,
