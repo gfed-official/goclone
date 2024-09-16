@@ -33,9 +33,10 @@ func addPrivateRoutes(g *gin.RouterGroup) {
 }
 
 func addAdminRoutes(g *gin.RouterGroup) {
-    g.GET("/view/pods", adminGetAllPods)
-    g.POST("/pod/clone/bulk", adminBulkClonePods)
-    g.DELETE("/pod/delete/:podId", adminDeletePod)
+	g.GET("/view/pods", adminGetAllPods)
+	g.POST("/pod/clone/bulk", adminBulkClonePods)
+	g.DELETE("/pod/delete/:podId", adminDeletePod)
+	g.POST("/templates/refresh", refreshTemplates)
 }
 
 // func pageData(c *gin.Context, title string, ginMap gin.H) gin.H {
@@ -51,7 +52,7 @@ func addAdminRoutes(g *gin.RouterGroup) {
 // }
 
 func getPresetTemplates(c *gin.Context) {
-    user := getUser(c)
+	user := getUser(c)
 	templates, err := vSphereGetPresetTemplates(user)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": errors.Wrap(err, "Template presets failed to load").Error()})
@@ -83,13 +84,13 @@ func getPods(c *gin.Context) {
 func deletePod(c *gin.Context) {
 	podId := c.Param("podId")
 
-    username := getUser(c)
-    podOwner := strings.Split(podId, "_")
-    podOwner = podOwner[len(podOwner)-1:]
-    if strings.ToLower(podOwner[0]) != strings.ToLower(username) {
-        c.JSON(http.StatusBadRequest, gin.H{"error": "You can only delete your own pods"})
-        return
-    }
+	username := getUser(c)
+	podOwner := strings.Split(podId, "_")
+	podOwner = podOwner[len(podOwner)-1:]
+	if strings.ToLower(podOwner[0]) != strings.ToLower(username) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "You can only delete your own pods"})
+		return
+	}
 
 	err := DestroyResources(podId)
 	if err != nil {
@@ -130,8 +131,8 @@ func invokePodCloneCustom(c *gin.Context) {
 
 func adminBulkClonePods(c *gin.Context) {
 	var form struct {
-		Template       string   `json:"template"`
-		Users []string `json:"users"`
+		Template string   `json:"template"`
+		Users    []string `json:"users"`
 	}
 
 	err := c.ShouldBindJSON(&form)
@@ -169,21 +170,21 @@ func invokePodCloneFromTemplate(c *gin.Context) {
 }
 
 func health(c *gin.Context) {
-    rc, err := vSphereClient.restClient.Session(vSphereClient.ctx)
-    if err != nil {
-        c.JSON(http.StatusInternalServerError, gin.H{"error": errors.Wrap(err, "Failed to get session").Error()})
-        return
-    }
+	rc, err := vSphereClient.restClient.Session(vSphereClient.ctx)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": errors.Wrap(err, "Failed to get session").Error()})
+		return
+	}
 
-    if rc == nil {
-        u, _ := soap.ParseURL(vCenterConfig.VCenterURL)
-        u.User = url.UserPassword(vCenterConfig.VCenterUsername, vCenterConfig.VCenterPassword)
-        err = vSphereClient.restClient.Login(vSphereClient.ctx, u.User)
-        if err != nil {
-            c.JSON(http.StatusInternalServerError, gin.H{"error": errors.Wrap(err, "Failed to refresh Rest Client").Error()})
-            return
-        }
-    }
+	if rc == nil {
+		u, _ := soap.ParseURL(vCenterConfig.VCenterURL)
+		u.User = url.UserPassword(vCenterConfig.VCenterUsername, vCenterConfig.VCenterPassword)
+		err = vSphereClient.restClient.Login(vSphereClient.ctx, u.User)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": errors.Wrap(err, "Failed to refresh Rest Client").Error()})
+			return
+		}
+	}
 
 	c.JSON(http.StatusOK, gin.H{"status": "ok"})
 }

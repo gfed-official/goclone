@@ -55,3 +55,12 @@ func bulkClonePods(template string, users []string) error {
 	}
 	return nil
 }
+
+func refreshTemplates(c *gin.Context) {
+	err := LoadTemplates()
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": errors.Wrap(err, "Error").Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Templates refreshed successfully!"})
+}

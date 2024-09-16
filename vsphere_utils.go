@@ -207,7 +207,6 @@ func IsHidden(wg *sync.WaitGroup, vm *mo.VirtualMachine, hiddenVMs *[]*mo.Virtua
 	}
 
 	for _, tag := range tags {
-		fmt.Println("Tag: ", tag.Name)
 		if tag.Name == "hidden" {
 			*hiddenVMs = append(*hiddenVMs, vm)
 		}
