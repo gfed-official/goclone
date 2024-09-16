@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"net/http"
-	"sync"
 
 	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
@@ -40,7 +39,7 @@ func bulkClonePods(template string, users []string) error {
 	}
 	defer ldapClient.Disconnect()
 
-	wg := errgroup.Group
+	wg := errgroup.Group{}
 	for _, user := range users {
 		if user == "" {
 			continue
@@ -54,8 +53,14 @@ func bulkClonePods(template string, users []string) error {
 			continue
 		}
 
-		wg.Add(1)
-		wg.Go(singleTemplateClone(&wg, template, user))
+		wg.Go(func() error {
+			err := singleTemplateClone(template, user)
+			if err != nil {
+				return errors.Wrap(err, "Error cloning pod")
+			}
+			return nil
+		},
+		)
 	}
 
 	if err := wg.Wait(); err != nil {
@@ -74,15 +79,13 @@ func refreshTemplates(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Templates refreshed successfully!"})
 }
 
-func singleTemplateClone(wg *sync.WaitGroup, templateId string, username string) error {
-	defer wg.Done()
+func singleTemplateClone(templateId string, username string) error {
 	err := vSpherePodLimit(username)
 	if err != nil {
 		return err
 	}
 
 	var nextAvailablePortGroup int
-
 	availablePortGroups.Mu.Lock()
 	for i := vCenterConfig.StartingPortGroup; i < vCenterConfig.EndingPortGroup; i++ {
 		if _, exists := availablePortGroups.Data[i]; !exists {
