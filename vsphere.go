@@ -30,6 +30,17 @@ type Pod struct {
 	ServerGUID    string
 }
 
+type Template struct {
+	Name      string
+	SourceRP  *object.ResourcePool
+	VMs       []mo.VirtualMachine
+	Natted    bool
+	AdminOnly bool
+	NoRouter  bool
+	WanPG     *object.DistributedVirtualPortgroup
+	VMsToHide []*mo.VirtualMachine
+}
+
 var (
 	availablePortGroups = &RWPortGroupMap{
 		Data: make(map[int]string),
@@ -104,10 +115,10 @@ func vSphereGetPresetTemplates(username string) ([]string, error) {
 	err := ldapClient.Connect()
 	defer ldapClient.Disconnect()
 
-    isAdm, err := ldapClient.IsAdmin(username)
-    if err != nil {
-        return nil, err
-    }
+	isAdm, err := ldapClient.IsAdmin(username)
+	if err != nil {
+		return nil, err
+	}
 
 	templateResourcePool, err := finder.ResourcePool(vSphereClient.ctx, vCenterConfig.PresetTemplateResourcePool)
 
@@ -130,22 +141,22 @@ func vSphereGetPresetTemplates(username string) ([]string, error) {
 	}
 
 	for _, rp := range rps {
-        tagsOnTmpl, err := GetTagsFromObject(rp.Reference())
-        if err != nil {
-            log.Println(errors.Wrap(err, "Error getting tags"))
-            return nil, err
-        }
-        tagNames := []string{}
-        for _, tag := range tagsOnTmpl {
-            tagNames = append(tagNames, tag.Name)
-        }
+		tagsOnTmpl, err := GetTagsFromObject(rp.Reference())
+		if err != nil {
+			log.Println(errors.Wrap(err, "Error getting tags"))
+			return nil, err
+		}
+		tagNames := []string{}
+		for _, tag := range tagsOnTmpl {
+			tagNames = append(tagNames, tag.Name)
+		}
 
-        if !isAdm && slices.Contains(tagNames, "AdminOnly") {
-            continue
-        }
+		if !isAdm && slices.Contains(tagNames, "AdminOnly") {
+			continue
+		}
 
-        templates = append(templates, rp.Name)
-    }
+		templates = append(templates, rp.Name)
+	}
 
 	return templates, nil
 }
@@ -288,64 +299,66 @@ func vSphereCustomClone(podName string, vmsToClone []string, nat bool, username 
 func TemplateClone(sourceRP, username string, portGroup int) error {
 	targetRP, pg, newFolder, err := InitializeClone(sourceRP, username, portGroup)
 
-	srcRp, err := GetResourcePool(sourceRP)
-	if err != nil {
-		log.Println(errors.Wrap(err, "Error getting resource pool"))
-		return err
-	}
-
-	tagsOnTmpl, err := GetTagsFromObject(srcRp.Reference())
-	if err != nil {
-		log.Println(errors.Wrap(err, "Error getting tags"))
-		return err
-	}
-
-	natted := false
-	noRouter := false
-	for _, tag := range tagsOnTmpl {
-		if tag.Name == "natted" {
-			natted = true
+	/*
+		srcRp, err := GetResourcePool(sourceRP)
+		if err != nil {
+			log.Println(errors.Wrap(err, "Error getting resource pool"))
+			return err
 		}
-		if tag.Name == "NoRouter" {
-			noRouter = true
+
+		tagsOnTmpl, err := GetTagsFromObject(srcRp.Reference())
+		if err != nil {
+			log.Println(errors.Wrap(err, "Error getting tags"))
+			return err
 		}
-	}
 
-	vms, err := GetVMsInResourcePool(srcRp.Reference())
-	if err != nil {
-		log.Println(errors.Wrap(err, "Error getting VMs in resource pool"))
-		return err
-	}
-
-	var router *mo.VirtualMachine
-	if !noRouter {
-		if !slices.ContainsFunc(vms, func(vm mo.VirtualMachine) bool {
-			if strings.Contains(vm.Name, "PodRouter") {
-				router = &vm
-				return true
-			} else {
-				return false
+		natted := false
+		noRouter := false
+		for _, tag := range tagsOnTmpl {
+			if tag.Name == "natted" {
+				natted = true
 			}
-		}) {
-			router, err = CreateRouter(srcRp.Reference(), datastore.Reference(), templateFolder, natted, sourceRP)
-			vms = append(vms, *router)
+			if tag.Name == "NoRouter" {
+				noRouter = true
+			}
 		}
-	}
 
-	err = CreateSnapshot(vms, "SnapshotForCloning")
-	if err != nil {
-		log.Println(errors.Wrap(err, "Error creating snapshot"))
-		return err
-	}
+		vms, err := GetVMsInResourcePool(srcRp.Reference())
+		if err != nil {
+			log.Println(errors.Wrap(err, "Error getting VMs in resource pool"))
+			return err
+		}
 
-	vmsToHide, err := GetVMsToHide(vms)
-	if err != nil {
-		log.Println(errors.Wrap(err, "Error getting VMs to hide"))
-		return err
-	}
+		var router *mo.VirtualMachine
+		if !noRouter {
+			if !slices.ContainsFunc(vms, func(vm mo.VirtualMachine) bool {
+				if strings.Contains(vm.Name, "PodRouter") {
+					router = &vm
+					return true
+				} else {
+					return false
+				}
+			}) {
+				router, err = CreateRouter(srcRp.Reference(), datastore.Reference(), templateFolder, natted, sourceRP)
+				vms = append(vms, *router)
+			}
+		}
+
+		err = CreateSnapshot(vms, "SnapshotForCloning")
+		if err != nil {
+			log.Println(errors.Wrap(err, "Error creating snapshot"))
+			return err
+		}
+
+		vmsToHide, err := GetVMsToHide(vms)
+		if err != nil {
+			log.Println(errors.Wrap(err, "Error getting VMs to hide"))
+			return err
+		}
+	*/
 
 	pgStr := strconv.Itoa(portGroup)
-	CloneVMs(vms, newFolder, targetRP.Reference(), datastore.Reference(), pg.Reference(), pgStr)
+	CloneVMs(templateMap[sourceRP].VMs, newFolder, targetRP.Reference(), datastore.Reference(), pg.Reference(), pgStr)
 
 	vmClones, err := newFolder.Children(vSphereClient.ctx)
 	if err != nil {
@@ -354,6 +367,7 @@ func TemplateClone(sourceRP, username string, portGroup int) error {
 	}
 
 	var vmClonesMo []mo.VirtualMachine
+	var router *mo.VirtualMachine
 	for _, vm := range vmClones {
 		vmObj := object.NewVirtualMachine(vSphereClient.client, vm.Reference())
 		var vm mo.VirtualMachine
@@ -369,14 +383,14 @@ func TemplateClone(sourceRP, username string, portGroup int) error {
 		}
 	}
 
-	if !noRouter {
+	if !templateMap[sourceRP].NoRouter {
 		err = ConfigRouter(pg.Reference(), wanPG.Reference(), router, pgStr)
 		if err != nil {
 			log.Println(errors.Wrap(err, "Error cloning router"))
 			return err
 		}
 
-		if natted {
+		if templateMap[sourceRP].Natted {
 			pgOctet, err := GetNatOctet(strconv.Itoa(portGroup))
 			if err != nil {
 				return err
@@ -406,7 +420,7 @@ func TemplateClone(sourceRP, username string, portGroup int) error {
 	}
 	AssignPermissionToObjects(&permission, []types.ManagedObjectReference{newFolder.Reference()})
 
-	HideVMs(vmsToHide, vmClonesMo, username)
+	HideVMs(templateMap[sourceRP].VMsToHide, vmClonesMo, username)
 
 	return nil
 }
@@ -576,4 +590,115 @@ func GetNatOctet(pg string) (int, error) {
 	}
 
 	return pgInt - vCenterConfig.StartingPortGroup + 1, nil
+}
+
+func LoadTemplates() error {
+	templateParentPool, err := finder.ResourcePool(vSphereClient.ctx, vCenterConfig.PresetTemplateResourcePool)
+	if err != nil {
+		log.Println(errors.Wrap(err, "Error getting resource pool list"))
+		return err
+	}
+
+	rpData := mo.ResourcePool{}
+	poolObj := object.NewResourcePool(vSphereClient.client, templateParentPool.Reference())
+	err = poolObj.Properties(vSphereClient.ctx, templateParentPool.Reference(), []string{"resourcePool"}, &rpData)
+	if err != nil {
+		log.Println(errors.Wrap(err, "Error getting resource pool children"))
+		return err
+	}
+
+	for _, rp := range rpData.ResourcePool {
+		rpObj := object.NewResourcePool(vSphereClient.client, rp.Reference())
+		rpName, err := rpObj.ObjectName(vSphereClient.ctx)
+		if err != nil {
+			log.Println(errors.Wrap(err, "Error getting resource pool name"))
+			return err
+		}
+		template, err := LoadTemplate(rpObj, rpName)
+		if err != nil {
+			log.Println(errors.Wrap(err, "Error loading template"))
+			return err
+		}
+		templateMap[rpName] = template
+	}
+
+	return nil
+}
+
+func LoadTemplate(rp *object.ResourcePool, name string) (Template, error) {
+	tagsOnTmpl, err := GetTagsFromObject(rp.Reference())
+	if err != nil {
+		log.Println(errors.Wrap(err, "Error getting tags"))
+		return Template{}, err
+	}
+
+	natted := false
+	noRouter := false
+	adminOnly := false
+	pg := wanPG
+	for _, tag := range tagsOnTmpl {
+		if tag.Name == "natted" {
+			natted = true
+		}
+		if tag.Name == "NoRouter" {
+			noRouter = true
+		}
+		if tag.Name == "AdminOnly" {
+			adminOnly = true
+		}
+		if strings.Contains(tag.Name, vCenterConfig.PortGroupSuffix) {
+			pg, err := GetPortGroup(tag.Name)
+			if err != nil {
+				log.Println(errors.Wrap(err, "Error getting port group"))
+				return Template{}, err
+			}
+			pg = object.NewDistributedVirtualPortgroup(vSphereClient.client, pg.Reference())
+		}
+	}
+
+	vms, err := GetVMsInResourcePool(rp.Reference())
+	if err != nil {
+		log.Println(errors.Wrap(err, "Error getting VMs in resource pool"))
+		return Template{}, err
+	}
+
+	var router *mo.VirtualMachine
+	if !noRouter {
+		if !slices.ContainsFunc(vms, func(vm mo.VirtualMachine) bool {
+			if strings.Contains(vm.Name, "PodRouter") {
+				router = &vm
+				return true
+			} else {
+				return false
+			}
+		}) {
+			router, err = CreateRouter(rp.Reference(), datastore.Reference(), templateFolder, natted, name)
+			vms = append(vms, *router)
+		}
+	}
+
+	err = CreateSnapshot(vms, "SnapshotForCloning")
+	if err != nil {
+		log.Println(errors.Wrap(err, "Error creating snapshot"))
+		return Template{}, err
+	}
+
+	vmsToHide, err := GetVMsToHide(vms)
+	if err != nil {
+		log.Println(errors.Wrap(err, "Error getting VMs to hide"))
+		return Template{}, err
+	}
+
+	template := Template{
+		Name:      name,
+		SourceRP:  rp,
+		VMs:       vms,
+		Natted:    natted,
+		AdminOnly: adminOnly,
+		NoRouter:  noRouter,
+		WanPG:     pg,
+		VMsToHide: vmsToHide,
+	}
+
+	return template, nil
 }

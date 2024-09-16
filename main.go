@@ -33,6 +33,7 @@ var (
 	mainConfig    = &config.Config{}
 	vCenterConfig config.VCenterConfig
 	ldapConfig    config.LdapConfig
+	templateMap   = map[string]Template{}
 )
 
 var (
@@ -122,9 +123,9 @@ func main() {
 	private.Use(authRequired)
 	addPrivateRoutes(private)
 
-    admin := router.Group("/api/v1/admin")
-    admin.Use(authRequired, adminRequired)
-    addAdminRoutes(admin)
+	admin := router.Group("/api/v1/admin")
+	admin.Use(authRequired, adminRequired)
+	addAdminRoutes(admin)
 
 	log.Fatalln(router.Run(":" + fmt.Sprint(mainConfig.Port)))
 }
@@ -182,7 +183,7 @@ func InitializeGovmomi() {
 	targetResourcePool, err = finder.ResourcePool(vSphereClient.ctx, vCenterConfig.TargetResourcePool)
 	fmt.Fprintln(os.Stdout, []any{"Initialized"}...)
 
-	pg, err := finder.Network(vSphereClient.ctx, vCenterConfig.WanPortGroup)
+	pg, err := finder.Network(vSphereClient.ctx, vCenterConfig.DefaultWanPortGroup)
 	if err != nil {
 		log.Fatalln(errors.Wrap(err, "Error finding WAN port group"))
 	}
@@ -205,5 +206,10 @@ func InitializeGovmomi() {
 		if role.Name == "NoAccess" {
 			noAccessRole = &role
 		}
+	}
+
+	err = LoadTemplates()
+	if err != nil {
+		log.Fatalln(errors.Wrap(err, "Error loading templates"))
 	}
 }

@@ -9,14 +9,14 @@ import (
 )
 
 func adminGetAllPods(c *gin.Context) {
-    // Get all pods
-    pods, err := vSphereGetPods("*")
-    if err != nil {
+	// Get all pods
+	pods, err := vSphereGetPods("*")
+	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": errors.Wrap(err, "Error").Error()})
-        return
-    }
+		return
+	}
 
-    c.JSON(http.StatusOK, pods)
+	c.JSON(http.StatusOK, pods)
 }
 
 func adminDeletePod(c *gin.Context) {
@@ -31,27 +31,27 @@ func adminDeletePod(c *gin.Context) {
 }
 
 func bulkClonePods(template string, users []string) error {
-    ldapClient := Client{}
-    err := ldapClient.Connect()
-    if err != nil {
-        return errors.Wrap(err, "Error connecting to LDAP")
-    }
-    for _, user := range users {
-        if user == "" {
-            continue
-        }
-        exists, err := ldapClient.UserExists(user)
-        if err != nil {
-            return errors.Wrap(err, "Error checking if user exists")
-        }
-        if !exists {
-            fmt.Printf("User %s does not exist, skipping\n", user)
-            continue
-        }
-        err = vSphereTemplateClone(template, user)
-        if err != nil {
-            return errors.Wrap(err, "Error cloning pod")
-        }
-    }
-    return nil
+	ldapClient := Client{}
+	err := ldapClient.Connect()
+	if err != nil {
+		return errors.Wrap(err, "Error connecting to LDAP")
+	}
+	for _, user := range users {
+		if user == "" {
+			continue
+		}
+		exists, err := ldapClient.UserExists(user)
+		if err != nil {
+			return errors.Wrap(err, "Error checking if user exists")
+		}
+		if !exists {
+			fmt.Printf("User %s does not exist, skipping\n", user)
+			continue
+		}
+		err = vSphereTemplateClone(template, user)
+		if err != nil {
+			return errors.Wrap(err, "Error cloning pod")
+		}
+	}
+	return nil
 }

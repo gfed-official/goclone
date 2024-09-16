@@ -189,57 +189,57 @@ func GetVMsInResourcePool(rp types.ManagedObjectReference) ([]mo.VirtualMachine,
 }
 
 func GetVMsToHide(vms []mo.VirtualMachine) ([]*mo.VirtualMachine, error) {
-    var wg sync.WaitGroup
-    var hiddenVMs []*mo.VirtualMachine
-    for _, vm := range vms {
-        wg.Add(1)
-        go IsHidden(&wg, &vm, &hiddenVMs)
-    }
-    wg.Wait()
-    return hiddenVMs, nil
+	var wg sync.WaitGroup
+	var hiddenVMs []*mo.VirtualMachine
+	for _, vm := range vms {
+		wg.Add(1)
+		go IsHidden(&wg, &vm, &hiddenVMs)
+	}
+	wg.Wait()
+	return hiddenVMs, nil
 }
 
 func IsHidden(wg *sync.WaitGroup, vm *mo.VirtualMachine, hiddenVMs *[]*mo.VirtualMachine) {
-    defer wg.Done()
-    tags, err := GetTagsFromObject(vm.Reference())
-    if err != nil {
-        log.Println(errors.Wrap(err, "Failed to get tags"))
-    }
+	defer wg.Done()
+	tags, err := GetTagsFromObject(vm.Reference())
+	if err != nil {
+		log.Println(errors.Wrap(err, "Failed to get tags"))
+	}
 
-    for _, tag := range tags {
-        fmt.Println("Tag: ", tag.Name)
-        if tag.Name == "hidden" {
-            *hiddenVMs = append(*hiddenVMs, vm)
-        }
-    }
+	for _, tag := range tags {
+		fmt.Println("Tag: ", tag.Name)
+		if tag.Name == "hidden" {
+			*hiddenVMs = append(*hiddenVMs, vm)
+		}
+	}
 }
 
 func HideVMs(vmsToHide []*mo.VirtualMachine, clonedVMs []mo.VirtualMachine, username string) {
-    fmt.Println("Hiding VMs")
-    var wg sync.WaitGroup
-    for _, vm := range vmsToHide {
-        for _, clonedVM := range clonedVMs {
-            if strings.Contains(clonedVM.Name, vm.Name) {
-                fmt.Println("Hiding VM: ", vm.Name)
-                wg.Add(1)
-                go HideVM(&wg, &clonedVM, username)
-            }
-        }
-    }
-    wg.Wait()
+	fmt.Println("Hiding VMs")
+	var wg sync.WaitGroup
+	for _, vm := range vmsToHide {
+		for _, clonedVM := range clonedVMs {
+			if strings.Contains(clonedVM.Name, vm.Name) {
+				fmt.Println("Hiding VM: ", vm.Name)
+				wg.Add(1)
+				go HideVM(&wg, &clonedVM, username)
+			}
+		}
+	}
+	wg.Wait()
 }
 
 func HideVM(wg *sync.WaitGroup, vm *mo.VirtualMachine, username string) {
-    defer wg.Done()
-    permission := types.Permission{
-        Principal: strings.Join([]string{mainConfig.Domain, username}, "\\"),
-        RoleId:    noAccessRole.RoleId,
-        Propagate: true,
-    }
-    err := AssignPermissionToObjects(&permission, []types.ManagedObjectReference{vm.Reference()})
-    if err != nil {
-        log.Println(errors.Wrap(err, "Failed to assign permission to VM"))
-    }
+	defer wg.Done()
+	permission := types.Permission{
+		Principal: strings.Join([]string{mainConfig.Domain, username}, "\\"),
+		RoleId:    noAccessRole.RoleId,
+		Propagate: true,
+	}
+	err := AssignPermissionToObjects(&permission, []types.ManagedObjectReference{vm.Reference()})
+	if err != nil {
+		log.Println(errors.Wrap(err, "Failed to assign permission to VM"))
+	}
 }
 
 func CreateSnapshot(vms []mo.VirtualMachine, name string) error {
@@ -425,7 +425,7 @@ func CreateRouter(srcRP, ds types.ManagedObjectReference, folder *object.Folder,
 	}
 
 	routerMo := mo.VirtualMachine{}
-    pc := property.DefaultCollector(vSphereClient.client)
+	pc := property.DefaultCollector(vSphereClient.client)
 	err = pc.Retrieve(vSphereClient.ctx, []types.ManagedObjectReference{routerObj.Reference()}, []string{"name"}, &routerMo)
 	if err != nil {
 		log.Println(errors.Wrap(err, "Error retrieving router"))
