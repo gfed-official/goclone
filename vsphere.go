@@ -36,6 +36,7 @@ type Template struct {
 	VMs       []mo.VirtualMachine
 	Natted    bool
 	NoRouter  bool
+    CompetitionPod bool
 	WanPG     *object.DistributedVirtualPortgroup
 	VMsToHide []*mo.VirtualMachine
 }
@@ -324,8 +325,15 @@ func TemplateClone(sourceRP, username string, portGroup int) error {
 		}
 	}
 
+    var routerPG *object.DistributedVirtualPortgroup
+    if templateMap[sourceRP].CompetitionPod {
+        routerPG = competitionPG
+    } else {
+        routerPG = templateMap[sourceRP].WanPG
+    }
+
 	if !templateMap[sourceRP].NoRouter {
-		err = ConfigRouter(pg.Reference(), wanPG.Reference(), router, pgStr)
+		err = ConfigRouter(pg.Reference(), routerPG.Reference(), router, pgStr)
 		if err != nil {
 			log.Println(errors.Wrap(err, "Error cloning router"))
 			return err
@@ -458,7 +466,7 @@ func InitializeClone(podName, username string, portGroup int) (*types.ManagedObj
 		return &types.ManagedObjectReference{}, &object.Network{}, &object.Folder{}, err
 	}
 
-	targetRP, err := CreateResourcePool(tagName)
+	targetRP, err := CreateResourcePool(tagName, templateMap[podName].CompetitionPod)
 	if err != nil {
 		log.Println(errors.Wrap(err, "Error creating resource pool"))
 		return &types.ManagedObjectReference{}, &object.Network{}, &object.Folder{}, err
@@ -566,6 +574,7 @@ func LoadTemplate(rp *object.ResourcePool, name string) (Template, error) {
 
 	natted := false
 	noRouter := false
+    competitionPod := false
 	pg := wanPG
 	for _, tag := range tagsOnTmpl {
 		if tag.Name == "natted" {
@@ -582,6 +591,9 @@ func LoadTemplate(rp *object.ResourcePool, name string) (Template, error) {
 			}
 			pg = object.NewDistributedVirtualPortgroup(vSphereClient.client, pg.Reference())
 		}
+        if tag.Name == "CompetitionPod" {
+            competitionPod = true
+        }
 	}
 
 	vms, err := GetVMsInResourcePool(rp.Reference())
@@ -622,6 +634,7 @@ func LoadTemplate(rp *object.ResourcePool, name string) (Template, error) {
 		SourceRP:  rp,
 		VMs:       vms,
 		Natted:    natted,
+        CompetitionPod: competitionPod,
 		NoRouter:  noRouter,
 		WanPG:     pg,
 		VMsToHide: vmsToHide,

@@ -109,7 +109,7 @@ func GetTagsFromObject(entity types.ManagedObjectReference) ([]tags.Tag, error) 
 	return tagList, nil
 }
 
-func CreateResourcePool(name string) (types.ManagedObjectReference, error) {
+func CreateResourcePool(name string, compPod bool) (types.ManagedObjectReference, error) {
 	rpSpec := types.ResourceConfigSpec{
 		CpuAllocation: types.ResourceAllocationInfo{
 			Shares:                &types.SharesInfo{Level: types.SharesLevelNormal},

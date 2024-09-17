@@ -44,7 +44,9 @@ var (
 	templateFolder     *object.Folder
 	tagManager         *tags.Manager
 	targetResourcePool *object.ResourcePool
+    competitionResourcePool *object.ResourcePool
 	wanPG              *object.DistributedVirtualPortgroup
+    competitionPG      *object.DistributedVirtualPortgroup
 	cloneRole          *types.AuthorizationRole
 	customCloneRole    *types.AuthorizationRole
 	noAccessRole       *types.AuthorizationRole
@@ -181,14 +183,27 @@ func InitializeGovmomi() {
 	tagManager = tags.NewManager(vSphereClient.restClient)
 
 	targetResourcePool, err = finder.ResourcePool(vSphereClient.ctx, vCenterConfig.TargetResourcePool)
-	fmt.Fprintln(os.Stdout, []any{"Initialized"}...)
+    if err != nil {
+        log.Fatalln(errors.Wrap(err, "Error finding target resource pool"))
+    }
+
+    competitionResourcePool, err = finder.ResourcePool(vSphereClient.ctx, vCenterConfig.CompetitionResourcePool)
+    if err != nil {
+        log.Fatalln(errors.Wrap(err, "Error finding competition resource pool"))
+    }
 
 	pg, err := finder.Network(vSphereClient.ctx, vCenterConfig.DefaultWanPortGroup)
 	if err != nil {
 		log.Fatalln(errors.Wrap(err, "Error finding WAN port group"))
 	}
-
 	wanPG = object.NewDistributedVirtualPortgroup(vSphereClient.client, pg.Reference())
+    
+    compPG, err := finder.Network(vSphereClient.ctx, vCenterConfig.CompetitionWanPortGroup)
+    if err != nil {
+        log.Fatalln(errors.Wrap(err, "Error finding competition WAN port group"))
+    }
+    competitionPG = object.NewDistributedVirtualPortgroup(vSphereClient.client, compPG.Reference())
+
 
 	authManager = object.NewAuthorizationManager(vSphereClient.client)
 	roles, err := authManager.RoleList(vSphereClient.ctx)
@@ -212,4 +227,6 @@ func InitializeGovmomi() {
 	if err != nil {
 		log.Fatalln(errors.Wrap(err, "Error loading templates"))
 	}
+
+	fmt.Fprintln(os.Stdout, []any{"Initialized"}...)
 }
