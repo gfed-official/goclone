@@ -131,7 +131,12 @@ func CreateResourcePool(name string, compPod bool) (types.ManagedObjectReference
 		return rp.Reference(), nil
 	}
 
-	child, err := targetResourcePool.Create(vSphereClient.ctx, name, rpSpec)
+    rpDest := targetResourcePool
+    if compPod {
+        rpDest = competitionResourcePool
+    }
+
+	child, err := rpDest.Create(vSphereClient.ctx, name, rpSpec)
 	if err != nil {
 		log.Println(errors.Wrap(err, "Error creating resource pool"))
 	}

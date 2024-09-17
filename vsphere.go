@@ -86,12 +86,12 @@ func vSphereLoadTakenPortGroups() error {
 		r, _ := regexp.Compile("^\\d+")
 		match := r.FindString(pg.Name)
 		pgNumber, _ := strconv.Atoi(match)
-		if pgNumber >= vCenterConfig.StartingPortGroup && pgNumber < vCenterConfig.EndingPortGroup {
+		if (pgNumber >= vCenterConfig.StartingPortGroup && pgNumber < vCenterConfig.EndingPortGroup) || (pgNumber >= vCenterConfig.CompetitionStartPortGroup && pgNumber < vCenterConfig.CompetitionEndPortGroup) {
 			availablePortGroups.Data[pgNumber] = pg.Name
 		}
 	}
 	availablePortGroups.Mu.Unlock()
-	log.Printf("Found %d port groups within on-demand DistributedPortGroup range: %d - %d", len(availablePortGroups.Data), vCenterConfig.StartingPortGroup, vCenterConfig.EndingPortGroup)
+	log.Printf("Found %d port groups", len(availablePortGroups.Data))
 	return nil
 }
 
@@ -250,15 +250,22 @@ func vSphereTemplateClone(templateId string, username string) error {
 		return err
 	}
 
-	var nextAvailablePortGroup int
+    startPG := vCenterConfig.StartingPortGroup
+    endPG := vCenterConfig.EndingPortGroup
 
+    if templateMap[templateId].CompetitionPod {
+        startPG = vCenterConfig.CompetitionStartPortGroup
+        endPG = vCenterConfig.CompetitionEndPortGroup
+    }
+
+	var nextAvailablePortGroup int
 	availablePortGroups.Mu.Lock()
-	for i := vCenterConfig.StartingPortGroup; i < vCenterConfig.EndingPortGroup; i++ {
-		if _, exists := availablePortGroups.Data[i]; !exists {
-			nextAvailablePortGroup = i
-			availablePortGroups.Data[i] = fmt.Sprintf("%v_%s", nextAvailablePortGroup, vCenterConfig.PortGroupSuffix)
-			break
-		}
+    for i := startPG; i < endPG; i++ {
+        if _, exists := availablePortGroups.Data[i]; !exists {
+            nextAvailablePortGroup = i
+            availablePortGroups.Data[i] = fmt.Sprintf("%v_%s", nextAvailablePortGroup, vCenterConfig.PortGroupSuffix)
+            break
+        }
 	}
 	availablePortGroups.Mu.Unlock()
 
@@ -344,9 +351,19 @@ func TemplateClone(sourceRP, username string, portGroup int) error {
 			if err != nil {
 				return err
 			}
+
+            var networkID string
+            if templateMap[sourceRP].CompetitionPod {
+                octets := strings.Split(vCenterConfig.CompetitionNetworkID, ".")
+                networkID = fmt.Sprintf("%s.%s", octets[0], octets[1])
+            } else {
+                octets := strings.Split(vCenterConfig.DefaultNetworkID, ".")
+                networkID = fmt.Sprintf("%s.%s", octets[0], octets[1])
+            }
+
 			program := types.GuestProgramSpec{
 				ProgramPath: vCenterConfig.RouterProgram,
-				Arguments:   fmt.Sprintf(vCenterConfig.RouterProgramArgs, pgOctet),
+				Arguments:   fmt.Sprintf(vCenterConfig.RouterProgramArgs, pgOctet, networkID),
 			}
 
 			auth := types.NamePasswordAuthentication{
@@ -427,9 +444,13 @@ func CustomClone(podName string, vmsToClone []string, natted bool, username stri
 		if err != nil {
 			return err
 		}
+
+        octets := strings.Split(vCenterConfig.DefaultNetworkID, ".")
+        networkID := fmt.Sprintf("%s.%s", octets[0], octets[1])
+
 		program := types.GuestProgramSpec{
 			ProgramPath: vCenterConfig.RouterProgram,
-			Arguments:   fmt.Sprintf(vCenterConfig.RouterProgramArgs, pgOctet),
+			Arguments:   fmt.Sprintf(vCenterConfig.RouterProgramArgs, pgOctet, networkID),
 		}
 
 		auth := types.NamePasswordAuthentication{
@@ -534,11 +555,20 @@ func GetNatOctet(pg string) (int, error) {
 		return -1, errors.New("Port group is not a number")
 	}
 
-	if pgInt < vCenterConfig.StartingPortGroup || pgInt > vCenterConfig.EndingPortGroup || pgInt > vCenterConfig.StartingPortGroup+255 {
-		return -1, errors.New("Port group out of range")
-	}
+    var start int
+    if pgInt < vCenterConfig.CompetitionStartPortGroup {
+        if pgInt < vCenterConfig.StartingPortGroup || pgInt > vCenterConfig.EndingPortGroup || pgInt > vCenterConfig.StartingPortGroup+255 {
+            return -1, errors.New("Port group out of range")
+        }
+        start = vCenterConfig.StartingPortGroup
+    } else {
+        if pgInt < vCenterConfig.CompetitionStartPortGroup || pgInt > vCenterConfig.CompetitionEndPortGroup || pgInt > vCenterConfig.CompetitionStartPortGroup+255 {
+            return -1, errors.New("Port group out of range")
+        }
+        start = vCenterConfig.CompetitionStartPortGroup
+    }
 
-	return pgInt - vCenterConfig.StartingPortGroup + 1, nil
+	return pgInt - start + 1, nil
 }
 
 func LoadTemplates() error {

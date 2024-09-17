@@ -2,6 +2,7 @@ package config
 
 import (
 	"log"
+	"net"
 	"os"
 	"strconv"
 	"strings"
@@ -34,9 +35,13 @@ type VCenterConfig struct {
 	PresetTemplateResourcePool string
 	StartingPortGroup          int
 	EndingPortGroup            int
+    CompetitionStartPortGroup  int
+    CompetitionEndPortGroup    int
 	TargetResourcePool         string
     CompetitionResourcePool    string
 	DefaultWanPortGroup        string
+    DefaultNetworkID           string
+    CompetitionNetworkID       string
     CompetitionWanPortGroup    string
 	MaxPodLimit                int
 	MainDistributedSwitch      string
@@ -77,6 +82,16 @@ func ReadConfigFromEnv(conf *Config) error {
 		log.Fatalln("Error converting ENDING_PORT_GROUP to int")
 		return err
 	}
+    competitionStartPG, err := strconv.Atoi(os.Getenv("COMPETITION_STARTING_PORT_GROUP"))
+    if err != nil {
+        log.Fatalln("Error converting COMPETITION_STARTING_PORT_GROUP to int")
+        return err
+    }
+    competitionEndPG, err := strconv.Atoi(os.Getenv("COMPETITION_ENDING_PORT_GROUP"))
+    if err != nil {
+        log.Fatalln("Error converting COMPETITION_ENDING_PORT_GROUP to int")
+        return err
+    }
 	port, err := strconv.Atoi(os.Getenv("PORT"))
 	if err != nil {
 		log.Fatalln("Error converting PORT to int")
@@ -87,6 +102,19 @@ func ReadConfigFromEnv(conf *Config) error {
 		log.Fatalln("Error converting MAX_POD_LIMIT to int")
 		return err
 	}
+    _, ipNet, err := net.ParseCIDR(os.Getenv("DEFAULT_NETWORK_ID"))
+    if err != nil {
+        log.Fatalln("Error converting DEFAULT_NETWORK_ID to net.IPNet")
+        return err
+    }
+    _, ipNetCompetition, err := net.ParseCIDR(os.Getenv("COMPETITION_NETWORK_ID"))
+    if err != nil {
+        log.Fatalln("Error converting COMPETITION_NETWORK_ID to net.IPNet")
+        return err
+    }
+    ipNetStr := ipNet.String()
+    ipNetCompetitionStr := ipNetCompetition.String()
+
 
 	conf.Port = port
 	conf.Domain = os.Getenv("DOMAIN")
@@ -105,10 +133,14 @@ func ReadConfigFromEnv(conf *Config) error {
 	conf.VCenterConfig.PresetTemplateResourcePool = os.Getenv("PRESET_TEMPLATE_RESOURCE_POOL")
 	conf.VCenterConfig.StartingPortGroup = startPG
 	conf.VCenterConfig.EndingPortGroup = endPG
+    conf.VCenterConfig.CompetitionStartPortGroup = competitionStartPG
+    conf.VCenterConfig.CompetitionEndPortGroup = competitionEndPG
 	conf.VCenterConfig.TargetResourcePool = os.Getenv("TARGET_RESOURCE_POOL")
     conf.VCenterConfig.CompetitionResourcePool = os.Getenv("COMPETITION_RESOURCE_POOL")
 	conf.VCenterConfig.DefaultWanPortGroup = os.Getenv("DEFAULT_WAN_PORT_GROUP")
+    conf.VCenterConfig.DefaultNetworkID = ipNetStr
     conf.VCenterConfig.CompetitionWanPortGroup = os.Getenv("COMPETITION_WAN_PORT_GROUP")
+    conf.VCenterConfig.CompetitionNetworkID = ipNetCompetitionStr
 	conf.VCenterConfig.MaxPodLimit = podLimit
 	conf.VCenterConfig.MainDistributedSwitch = os.Getenv("MAIN_DISTRIBUTED_SWITCH")
 	conf.VCenterConfig.TemplateFolder = os.Getenv("TEMPLATE_FOLDER")
