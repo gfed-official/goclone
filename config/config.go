@@ -35,7 +35,9 @@ type VCenterConfig struct {
 	StartingPortGroup          int
 	EndingPortGroup            int
 	TargetResourcePool         string
+    CompetitionResourcePool    string
 	DefaultWanPortGroup        string
+    CompetitionWanPortGroup    string
 	MaxPodLimit                int
 	MainDistributedSwitch      string
 	TemplateFolder             string
@@ -104,7 +106,9 @@ func ReadConfigFromEnv(conf *Config) error {
 	conf.VCenterConfig.StartingPortGroup = startPG
 	conf.VCenterConfig.EndingPortGroup = endPG
 	conf.VCenterConfig.TargetResourcePool = os.Getenv("TARGET_RESOURCE_POOL")
+    conf.VCenterConfig.CompetitionResourcePool = os.Getenv("COMPETITION_RESOURCE_POOL")
 	conf.VCenterConfig.DefaultWanPortGroup = os.Getenv("DEFAULT_WAN_PORT_GROUP")
+    conf.VCenterConfig.CompetitionWanPortGroup = os.Getenv("COMPETITION_WAN_PORT_GROUP")
 	conf.VCenterConfig.MaxPodLimit = podLimit
 	conf.VCenterConfig.MainDistributedSwitch = os.Getenv("MAIN_DISTRIBUTED_SWITCH")
 	conf.VCenterConfig.TemplateFolder = os.Getenv("TEMPLATE_FOLDER")

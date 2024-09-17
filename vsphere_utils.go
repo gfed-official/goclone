@@ -663,3 +663,27 @@ func AssignPermissionToObjects(permission *types.Permission, object []types.Mana
 
 	return nil
 }
+
+func GetChildResourcePools(resourcePool string) ([]*object.ResourcePool, error) {
+	templateParentPool, err := finder.ResourcePool(vSphereClient.ctx, resourcePool)
+	if err != nil {
+		log.Println(errors.Wrap(err, "Error getting resource pool list"))
+		return nil, err
+	}
+
+	rpData := mo.ResourcePool{}
+	poolObj := object.NewResourcePool(vSphereClient.client, templateParentPool.Reference())
+	err = poolObj.Properties(vSphereClient.ctx, templateParentPool.Reference(), []string{"resourcePool"}, &rpData)
+	if err != nil {
+		log.Println(errors.Wrap(err, "Error getting resource pool children"))
+		return nil, err
+	}
+
+    var rpList []*object.ResourcePool
+	for _, rp := range rpData.ResourcePool {
+		rpObj := object.NewResourcePool(vSphereClient.client, rp.Reference())
+        rpList = append(rpList, rpObj)
+	}
+
+    return rpList, nil
+}

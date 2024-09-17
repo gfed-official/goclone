@@ -534,28 +534,19 @@ func GetNatOctet(pg string) (int, error) {
 }
 
 func LoadTemplates() error {
-	templateParentPool, err := finder.ResourcePool(vSphereClient.ctx, vCenterConfig.PresetTemplateResourcePool)
-	if err != nil {
-		log.Println(errors.Wrap(err, "Error getting resource pool list"))
-		return err
-	}
+    rpList, err := GetChildResourcePools(vCenterConfig.PresetTemplateResourcePool)
+    if err != nil {
+        log.Println(errors.Wrap(err, "Error getting child resource pools"))
+        return err
+    }
 
-	rpData := mo.ResourcePool{}
-	poolObj := object.NewResourcePool(vSphereClient.client, templateParentPool.Reference())
-	err = poolObj.Properties(vSphereClient.ctx, templateParentPool.Reference(), []string{"resourcePool"}, &rpData)
-	if err != nil {
-		log.Println(errors.Wrap(err, "Error getting resource pool children"))
-		return err
-	}
-
-	for _, rp := range rpData.ResourcePool {
-		rpObj := object.NewResourcePool(vSphereClient.client, rp.Reference())
-		rpName, err := rpObj.ObjectName(vSphereClient.ctx)
+	for _, rp := range rpList {
+		rpName, err := rp.ObjectName(vSphereClient.ctx)
 		if err != nil {
 			log.Println(errors.Wrap(err, "Error getting resource pool name"))
 			return err
 		}
-		template, err := LoadTemplate(rpObj, rpName)
+		template, err := LoadTemplate(rp, rpName)
 		if err != nil {
 			log.Println(errors.Wrap(err, "Error loading template"))
 			return err

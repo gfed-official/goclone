@@ -37,19 +37,8 @@ func addAdminRoutes(g *gin.RouterGroup) {
 	g.POST("/pod/clone/bulk", adminBulkClonePods)
 	g.DELETE("/pod/delete/:podId", adminDeletePod)
 	g.POST("/templates/refresh", refreshTemplates)
+    g.POST("/pod/delete/bulk", adminBulkDeletePods)
 }
-
-// func pageData(c *gin.Context, title string, ginMap gin.H) gin.H {
-// 	newGinMap := gin.H{}
-// 	newGinMap["title"] = title
-// 	newGinMap["user"] = getUser(c)
-// 	newGinMap["config"] = tomlConf
-// 	newGinMap["operation"] = tomlConf.Operation
-// 	for key, value := range ginMap {
-// 		newGinMap[key] = value
-// 	}
-// 	return newGinMap
-// }
 
 func getPresetTemplates(c *gin.Context) {
 	user := getUser(c)
@@ -147,6 +136,34 @@ func adminBulkClonePods(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "Pods deployed successfully!"})
+}
+
+func adminBulkDeletePods(c *gin.Context) {
+    var form struct {
+        Filter []string `json:"filter"`
+        Type string `json:"type"`
+    }
+
+    err := c.ShouldBindJSON(&form)
+    if err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": errors.Wrap(err, "Missing fields").Error()})
+        return
+    }
+
+    if form.Type == "users" {
+        err = bulkDeletePodsByUsers(form.Filter)
+    } else if form.Type == "templates" {
+        err = bulkDeletePodsByTemplates(form.Filter)
+    } else {
+        c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid type"})
+        return
+    }
+
+    if err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": errors.Wrap(err, "Failed to delete pods").Error()})
+        return
+    }
+    c.JSON(http.StatusOK, gin.H{"message": "Pods deleted successfully!"})
 }
 
 func invokePodCloneFromTemplate(c *gin.Context) {
