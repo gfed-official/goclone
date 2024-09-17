@@ -33,7 +33,7 @@ func adminGetAllPods(c *gin.Context) {
         pods = append(pods, Pod{
             Name: podName,
             ResourceGroup: pod.Reference().Value,
-            ServerGUID: pod.Reference().ServerGUID,
+            ServerGUID: vSphereClient.client.ServiceContent.ViewManager.ServerGUID,
         },)
     }
 
