@@ -140,8 +140,7 @@ func adminBulkClonePods(c *gin.Context) {
 
 func adminBulkDeletePods(c *gin.Context) {
     var form struct {
-        Filter []string `json:"filter"`
-        Type string `json:"type"`
+        Filters []string `json:"filters"`
     }
 
     err := c.ShouldBindJSON(&form)
@@ -150,17 +149,15 @@ func adminBulkDeletePods(c *gin.Context) {
         return
     }
 
-    if form.Type == "users" {
-        err = bulkDeletePodsByUsers(form.Filter)
-    } else if form.Type == "templates" {
-        err = bulkDeletePodsByTemplates(form.Filter)
-    } else {
-        c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid type"})
+    failed, err := bulkDeletePods(form.Filters)
+    if err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": errors.Wrap(err, "Failed to delete pods").Error()})
         return
     }
 
-    if err != nil {
-        c.JSON(http.StatusBadRequest, gin.H{"error": errors.Wrap(err, "Failed to delete pods").Error()})
+    if len(failed) > 0 {
+        failedStr := strings.Join(failed, ", ")
+        c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to delete pods: " + failedStr})
         return
     }
     c.JSON(http.StatusOK, gin.H{"message": "Pods deleted successfully!"})

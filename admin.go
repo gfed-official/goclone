@@ -103,70 +103,39 @@ func bulkClonePods(template string, users []string) error {
     return nil
 }
 
-func bulkDeletePodsByUsers(filter []string) error {
+func bulkDeletePods(filter []string) ([]string, error) {
     kaminoPods, err := GetChildResourcePools(vCenterConfig.TargetResourcePool)
     if err != nil {
-        return errors.Wrap(err, "Error getting Kamino pods")
+        return []string{}, errors.Wrap(err, "Error getting Kamino pods")
     }
 
     competitionPods, err := GetChildResourcePools(vCenterConfig.CompetitionResourcePool)
     if err != nil {
-        return errors.Wrap(err, "Error getting Competition pods")
+        return []string{}, errors.Wrap(err, "Error getting Competition pods")
     }
 
     pods := append(kaminoPods, competitionPods...)
+    failed := []string{}
     for _, pod := range pods {
         podName, err := pod.ObjectName(vSphereClient.ctx)
         if err != nil {
-            return errors.Wrap(err, "Error getting pod name")
+            return []string{}, errors.Wrap(err, "Error getting pod name")
         }
 
-        for _, user := range filter {
-            if user == "" {
+        for _, f := range filter {
+            if f == "" {
                 continue
             }
-            if strings.Contains(podName, user){
-                err := DestroyResources(pod.Reference().Value)
-                if err != nil {
-                    return errors.Wrap(err, "Error destroying resources")
-                }
-            }
-        }
-    }
-    return nil
-}
-
-func bulkDeletePodsByTemplates(filter []string) error {
-    kaminoPods, err := GetChildResourcePools(vCenterConfig.TargetResourcePool)
-    if err != nil {
-        return errors.Wrap(err, "Error getting Kamino pods")
-    }
-
-    competitionPods, err := GetChildResourcePools(vCenterConfig.CompetitionResourcePool)
-    if err != nil {
-        return errors.Wrap(err, "Error getting Competition pods")
-    }
-
-    pods := append(kaminoPods, competitionPods...)
-    for _, pod := range pods {
-        podName, err := pod.ObjectName(vSphereClient.ctx)
-        if err != nil {
-            return errors.Wrap(err, "Error getting pod name")
-        }
-
-        for _, tmpl := range filter {
-            if tmpl == "" {
-                continue
-            }
-            if strings.Contains(podName, tmpl){
-                err := DestroyResources(pod.Reference().Value)
+            if strings.Contains(podName, f) {
+                err := DestroyResources(podName)
                 if err != nil {
                     fmt.Printf("Error destroying resources for pod %s: %v\n", podName, err)
+                    failed = append(failed, podName)
                 }
             }
         }
     }
-    return nil
+    return failed, nil
 }
 
 func refreshTemplates(c *gin.Context) {
