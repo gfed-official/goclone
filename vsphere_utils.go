@@ -219,12 +219,10 @@ func IsHidden(wg *sync.WaitGroup, vm *mo.VirtualMachine, hiddenVMs *[]*mo.Virtua
 }
 
 func HideVMs(vmsToHide []*mo.VirtualMachine, clonedVMs []mo.VirtualMachine, username string) {
-	fmt.Println("Hiding VMs")
 	var wg sync.WaitGroup
 	for _, vm := range vmsToHide {
 		for _, clonedVM := range clonedVMs {
 			if strings.Contains(clonedVM.Name, vm.Name) {
-				fmt.Println("Hiding VM: ", vm.Name)
 				wg.Add(1)
 				go HideVM(&wg, &clonedVM, username)
 			}
@@ -353,8 +351,6 @@ func CloneVMsFromTemplates(templates []mo.VirtualMachine, folder *object.Folder,
 
 func CloneVM(wg *sync.WaitGroup, vm mo.VirtualMachine, folder object.Folder, spec types.VirtualMachineCloneSpec) {
 	defer wg.Done()
-
-	fmt.Println("Cloning VM: ", vm.Name)
 
 	vmObj := object.NewVirtualMachine(vSphereClient.client, vm.Reference())
 	task, err := vmObj.Clone(vSphereClient.ctx, &folder, vm.Name, spec)

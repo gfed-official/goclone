@@ -13,13 +13,13 @@ import (
 func adminGetAllPods(c *gin.Context) {
     kaminoPods, err := GetChildResourcePools(vCenterConfig.TargetResourcePool)
     if err != nil {
-        c.JSON(http.StatusBadRequest, gin.H{"error": errors.Wrap(err, "Error").Error()})
+        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
         return
     }
 
     competitionPods, err := GetChildResourcePools(vCenterConfig.CompetitionResourcePool)
     if err != nil {
-        c.JSON(http.StatusBadRequest, gin.H{"error": errors.Wrap(err, "Error").Error()})
+        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
         return
     }
 
@@ -27,7 +27,7 @@ func adminGetAllPods(c *gin.Context) {
     for _, pod := range kaminoPods {
         podName, err := pod.ObjectName(vSphereClient.ctx)
         if err != nil {
-            c.JSON(http.StatusBadRequest, gin.H{"error": errors.Wrap(err, "Error").Error()})
+            c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
             return
         }
         pods = append(pods, Pod{
@@ -40,7 +40,7 @@ func adminGetAllPods(c *gin.Context) {
     for _, pod := range competitionPods {
         podName, err := pod.ObjectName(vSphereClient.ctx)
         if err != nil {
-            c.JSON(http.StatusBadRequest, gin.H{"error": errors.Wrap(err, "Error").Error()})
+            c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
             return
         }
         pods = append(pods, Pod{
@@ -59,7 +59,7 @@ func adminDeletePod(c *gin.Context) {
 
     err := DestroyResources(podId)
     if err != nil {
-        c.JSON(http.StatusBadRequest, gin.H{"error": errors.Wrap(err, "Error").Error()})
+        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
         return
     }
     c.JSON(http.StatusOK, gin.H{"message": "Pod deleted successfully!"})
@@ -141,7 +141,7 @@ func bulkDeletePods(filter []string) ([]string, error) {
 func refreshTemplates(c *gin.Context) {
     err := LoadTemplates()
     if err != nil {
-        c.JSON(http.StatusBadRequest, gin.H{"error": errors.Wrap(err, "Error").Error()})
+        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
         return
     }
     c.JSON(http.StatusOK, gin.H{"message": "Templates refreshed successfully!"})

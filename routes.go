@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"net/http"
 	"net/url"
 	"strings"
@@ -104,11 +105,12 @@ func invokePodCloneCustom(c *gin.Context) {
 		return
 	}
 
-	// change for admin
 	if len(form.Vmstoclone) > 8 {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Too many VMs in custom pod"})
 		return
 	}
+
+    fmt.Printf("User %s is cloning custom pod %s\n", username, form.Name)
 
 	err = vSphereCustomClone(form.Name, form.Vmstoclone, form.Nat, username)
 	if err != nil {
@@ -174,6 +176,7 @@ func invokePodCloneFromTemplate(c *gin.Context) {
 	template := jsonData["template"].(string)
 	username := getUser(c)
 
+    fmt.Printf("User %s is cloning template %s\n", username, template)
 	err = vSphereTemplateClone(template, username)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": errors.Wrap(err, "Failed to deploy template pod").Error()})
