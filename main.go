@@ -25,32 +25,33 @@ import (
 
 type VSphereClient struct {
 	client     *vim25.Client
-	restClient *rest.Client
 	ctx        context.Context
+	restClient *rest.Client
 }
 
 var (
-	mainConfig    = &config.Config{}
-	vCenterConfig config.VCenterConfig
 	ldapConfig    config.LdapConfig
+	mainConfig    = &config.Config{}
 	templateMap   = map[string]Template{}
+	vCenterConfig config.VCenterConfig
 )
 
 var (
-	vSphereClient      *VSphereClient
-	finder             *find.Finder
-	datastore          *object.Datastore
-	dvsMo              mo.DistributedVirtualSwitch
-	templateFolder     *object.Folder
-	tagManager         *tags.Manager
-	targetResourcePool *object.ResourcePool
-    competitionResourcePool *object.ResourcePool
-	wanPG              *object.DistributedVirtualPortgroup
-    competitionPG      *object.DistributedVirtualPortgroup
+	authManager        *object.AuthorizationManager
 	cloneRole          *types.AuthorizationRole
 	customCloneRole    *types.AuthorizationRole
+	datastore          *object.Datastore
+    destinationFolder  *object.Folder
+	dvsMo              mo.DistributedVirtualSwitch
+	finder             *find.Finder
 	noAccessRole       *types.AuthorizationRole
-	authManager        *object.AuthorizationManager
+	tagManager         *tags.Manager
+	targetResourcePool *object.ResourcePool
+	templateFolder     *object.Folder
+	vSphereClient      *VSphereClient
+	wanPG              *object.DistributedVirtualPortgroup
+    competitionPG      *object.DistributedVirtualPortgroup
+    competitionResourcePool *object.ResourcePool
 )
 
 func init() {
@@ -179,6 +180,11 @@ func InitializeGovmomi() {
 	if err != nil {
 		log.Fatalln(errors.Wrap(err, "Error finding template folder"))
 	}
+
+    destinationFolder, err = finder.Folder(vSphereClient.ctx, vCenterConfig.DestinationFolder)
+    if err != nil {
+        log.Fatalln(errors.Wrap(err, "Error finding destination folder"))
+    }
 
 	tagManager = tags.NewManager(vSphereClient.restClient)
 

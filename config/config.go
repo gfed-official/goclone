@@ -15,57 +15,58 @@ var (
 )
 
 type Config struct {
-	Port          int
 	Domain        string
-	LogPath       string
 	Fqdn          string
 	JwtPrivateKey []byte
 	JwtPublicKey  []byte
+	LogPath       string
+	Port          int
 
-	VCenterConfig VCenterConfig
 	LdapConfig    LdapConfig
+	VCenterConfig VCenterConfig
 }
 
 type VCenterConfig struct {
-	VCenterURL                 string
-	VCenterUsername            string
-	VCenterPassword            string
-	Datacenter                 string
-	Datastore                  string
-	PresetTemplateResourcePool string
-	StartingPortGroup          int
-	EndingPortGroup            int
-    CompetitionStartPortGroup  int
-    CompetitionEndPortGroup    int
-	TargetResourcePool         string
-    CompetitionResourcePool    string
-	DefaultWanPortGroup        string
-    DefaultNetworkID           string
-    CompetitionNetworkID       string
-    CompetitionWanPortGroup    string
-	MaxPodLimit                int
-	MainDistributedSwitch      string
-	TemplateFolder             string
-	PortGroupSuffix            string
 	CloneRole                  string
 	CustomCloneRole            string
+	Datacenter                 string
+	Datastore                  string
+	DefaultWanPortGroup        string
+    DestinationFolder          string
+	EndingPortGroup            int
+	MainDistributedSwitch      string
+	MaxPodLimit                int
 	NattedRouterPath           string
-	RouterPath                 string
-	RouterUsername             string
+	PortGroupSuffix            string
+	PresetTemplateResourcePool string
 	RouterPassword             string
+	RouterPath                 string
 	RouterProgram              string
 	RouterProgramArgs          string
+	RouterUsername             string
+	StartingPortGroup          int
+	TargetResourcePool         string
+	TemplateFolder             string
+	VCenterPassword            string
+	VCenterURL                 string
+	VCenterUsername            string
+    CompetitionEndPortGroup    int
+    CompetitionNetworkID       string
+    CompetitionResourcePool    string
+    CompetitionStartPortGroup  int
+    CompetitionWanPortGroup    string
+    DefaultNetworkID           string
 }
 
 type LdapConfig struct {
+	BaseDN        string
 	BindDN        string
 	BindPassword  string
-	URL           string
-	BaseDN        string
-	UsersDN       string
-	InsecureTLS   bool
-	UserAttribute string
 	GroupDN       string
+	InsecureTLS   bool
+	URL           string
+	UserAttribute string
+	UsersDN       string
 }
 
 /*
@@ -124,44 +125,45 @@ func ReadConfigFromEnv(conf *Config) error {
 	conf.JwtPrivateKey = []byte(os.Getenv("TLS_KEY"))
 	conf.JwtPublicKey = []byte(os.Getenv("TLS_CERT"))
 
+	conf.VCenterConfig.VCenterPassword = strings.TrimSpace(os.Getenv("VCENTER_PASSWORD"))
 	conf.VCenterConfig.VCenterURL = os.Getenv("VCENTER_URL")
 	conf.VCenterConfig.VCenterUsername = strings.TrimSpace(os.Getenv("VCENTER_USERNAME"))
-	conf.VCenterConfig.VCenterPassword = strings.TrimSpace(os.Getenv("VCENTER_PASSWORD"))
 
-	conf.VCenterConfig.Datacenter = os.Getenv("DATACENTER")
-	conf.VCenterConfig.Datastore = os.Getenv("DATASTORE")
-	conf.VCenterConfig.PresetTemplateResourcePool = os.Getenv("PRESET_TEMPLATE_RESOURCE_POOL")
-	conf.VCenterConfig.StartingPortGroup = startPG
-	conf.VCenterConfig.EndingPortGroup = endPG
-    conf.VCenterConfig.CompetitionStartPortGroup = competitionStartPG
-    conf.VCenterConfig.CompetitionEndPortGroup = competitionEndPG
-	conf.VCenterConfig.TargetResourcePool = os.Getenv("TARGET_RESOURCE_POOL")
-    conf.VCenterConfig.CompetitionResourcePool = os.Getenv("COMPETITION_RESOURCE_POOL")
-	conf.VCenterConfig.DefaultWanPortGroup = os.Getenv("DEFAULT_WAN_PORT_GROUP")
-    conf.VCenterConfig.DefaultNetworkID = ipNetStr
-    conf.VCenterConfig.CompetitionWanPortGroup = os.Getenv("COMPETITION_WAN_PORT_GROUP")
-    conf.VCenterConfig.CompetitionNetworkID = ipNetCompetitionStr
-	conf.VCenterConfig.MaxPodLimit = podLimit
-	conf.VCenterConfig.MainDistributedSwitch = os.Getenv("MAIN_DISTRIBUTED_SWITCH")
-	conf.VCenterConfig.TemplateFolder = os.Getenv("TEMPLATE_FOLDER")
-	conf.VCenterConfig.PortGroupSuffix = os.Getenv("PORT_GROUP_SUFFIX")
 	conf.VCenterConfig.CloneRole = os.Getenv("CLONE_ROLE")
 	conf.VCenterConfig.CustomCloneRole = os.Getenv("CUSTOM_CLONE_ROLE")
+	conf.VCenterConfig.Datacenter = os.Getenv("DATACENTER")
+	conf.VCenterConfig.Datastore = os.Getenv("DATASTORE")
+	conf.VCenterConfig.DefaultWanPortGroup = os.Getenv("DEFAULT_WAN_PORT_GROUP")
+    conf.VCenterConfig.DestinationFolder = os.Getenv("DESTINATION_FOLDER")
+	conf.VCenterConfig.EndingPortGroup = endPG
+	conf.VCenterConfig.MainDistributedSwitch = os.Getenv("MAIN_DISTRIBUTED_SWITCH")
+	conf.VCenterConfig.MaxPodLimit = podLimit
 	conf.VCenterConfig.NattedRouterPath = os.Getenv("NATTED_ROUTER_PATH")
-	conf.VCenterConfig.RouterPath = os.Getenv("ROUTER_PATH")
-	conf.VCenterConfig.RouterUsername = os.Getenv("ROUTER_USERNAME")
+	conf.VCenterConfig.PortGroupSuffix = os.Getenv("PORT_GROUP_SUFFIX")
+	conf.VCenterConfig.PresetTemplateResourcePool = os.Getenv("PRESET_TEMPLATE_RESOURCE_POOL")
 	conf.VCenterConfig.RouterPassword = os.Getenv("ROUTER_PASSWORD")
+	conf.VCenterConfig.RouterPath = os.Getenv("ROUTER_PATH")
 	conf.VCenterConfig.RouterProgram = os.Getenv("ROUTER_PROGRAM")
 	conf.VCenterConfig.RouterProgramArgs = os.Getenv("ROUTER_PROGRAM_ARGS")
+	conf.VCenterConfig.RouterUsername = os.Getenv("ROUTER_USERNAME")
+	conf.VCenterConfig.StartingPortGroup = startPG
+	conf.VCenterConfig.TargetResourcePool = os.Getenv("TARGET_RESOURCE_POOL")
+	conf.VCenterConfig.TemplateFolder = os.Getenv("TEMPLATE_FOLDER")
+    conf.VCenterConfig.CompetitionEndPortGroup = competitionEndPG
+    conf.VCenterConfig.CompetitionNetworkID = ipNetCompetitionStr
+    conf.VCenterConfig.CompetitionResourcePool = os.Getenv("COMPETITION_RESOURCE_POOL")
+    conf.VCenterConfig.CompetitionStartPortGroup = competitionStartPG
+    conf.VCenterConfig.CompetitionWanPortGroup = os.Getenv("COMPETITION_WAN_PORT_GROUP")
+    conf.VCenterConfig.DefaultNetworkID = ipNetStr
 
+	conf.LdapConfig.BaseDN = os.Getenv("LDAP_BASE_DN")
 	conf.LdapConfig.BindDN = os.Getenv("LDAP_BIND_DN")
 	conf.LdapConfig.BindPassword = os.Getenv("LDAP_BIND_PASSWORD")
-	conf.LdapConfig.URL = os.Getenv("LDAP_URL")
-	conf.LdapConfig.BaseDN = os.Getenv("LDAP_BASE_DN")
-	conf.LdapConfig.UsersDN = os.Getenv("LDAP_USERS_DN")
-	conf.LdapConfig.UserAttribute = os.Getenv("LDAP_USER_ATTRIBUTE")
 	conf.LdapConfig.GroupDN = os.Getenv("LDAP_GROUP_DN")
 	conf.LdapConfig.InsecureTLS, err = strconv.ParseBool(os.Getenv("LDAP_INSECURE_TLS"))
+	conf.LdapConfig.URL = os.Getenv("LDAP_URL")
+	conf.LdapConfig.UserAttribute = os.Getenv("LDAP_USER_ATTRIBUTE")
+	conf.LdapConfig.UsersDN = os.Getenv("LDAP_USERS_DN")
 	if err != nil {
 		log.Println("Error converting LDAP_INSECURE_TLS to bool")
 	}

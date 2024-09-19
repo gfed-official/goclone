@@ -157,12 +157,7 @@ func GetResourcePool(name string) (*object.ResourcePool, error) {
 }
 
 func CreateVMFolder(name string) (*object.Folder, error) {
-	vmFolder, err := finder.Folder(vSphereClient.ctx, "vm")
-	if err != nil {
-		log.Println(errors.Wrap(err, "Cannot find vm folder"))
-	}
-
-	newFolder, err := vmFolder.CreateFolder(vSphereClient.ctx, name)
+	newFolder, err := destinationFolder.CreateFolder(vSphereClient.ctx, name)
 	if err != nil {
 		log.Println(errors.Wrap(err, "Failed to create folder"))
 	}
