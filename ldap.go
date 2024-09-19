@@ -93,7 +93,7 @@ func (cl *Client) CreateUser(name string) (string, error) {
 		Vals: []string{"Registered by Goclone"},
 	})
 
-	dn := fmt.Sprintf("%s=%s,%s", ldapConfig.UserAttribute, name, ldapConfig.BaseDN)
+	dn := fmt.Sprintf("%s=%s,%s", ldapConfig.UserAttribute, name, ldapConfig.UsersDN)
 
 	req := ldap.AddRequest{
 		DN:         dn,
