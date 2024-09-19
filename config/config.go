@@ -17,8 +17,6 @@ var (
 type Config struct {
 	Domain        string
 	Fqdn          string
-	JwtPrivateKey []byte
-	JwtPublicKey  []byte
 	LogPath       string
 	Port          int
 
@@ -121,9 +119,6 @@ func ReadConfigFromEnv(conf *Config) error {
 	conf.Domain = os.Getenv("DOMAIN")
 	conf.Fqdn = os.Getenv("FQDN")
 	conf.LogPath = os.Getenv("LOG_PATH")
-
-	conf.JwtPrivateKey = []byte(os.Getenv("TLS_KEY"))
-	conf.JwtPublicKey = []byte(os.Getenv("TLS_CERT"))
 
 	conf.VCenterConfig.VCenterPassword = strings.TrimSpace(os.Getenv("VCENTER_PASSWORD"))
 	conf.VCenterConfig.VCenterURL = os.Getenv("VCENTER_URL")

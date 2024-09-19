@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"goclone/token"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -82,32 +81,6 @@ func login(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to save session."})
 		return
 	}
-
-    ldapClient := Client{}
-    err = ldapClient.Connect()
-    defer ldapClient.Disconnect()
-
-    isAdmin, err := ldapClient.IsAdmin(username)
-    if err != nil {
-        c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-        return
-    }
-
-    userDN, err := ldapClient.GetUserDN(username)
-    if err != nil {
-        c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-        return
-    }
-
-    jwtUserData := token.UserJWTData{
-        Username: userDN,
-        Admin:    isAdmin,
-    }
-
-    jwtToken := token.NewJWT(mainConfig.JwtPrivateKey, mainConfig.JwtPublicKey)
-    tok, err := jwtToken.Create(userDN, jwtUserData)
-
-    c.SetCookie("auth_token", tok, 21600, "/", "kamino.calpolyswift.org", false, true)
 
     if err = session.Save(); err != nil {
         c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save session."})
@@ -193,54 +166,19 @@ func validatePassword(password string) bool {
 	return number && letter
 }
 
-func authFromToken(c *gin.Context) {
-	tok := c.Param("token")
-
-	claims, err := token.GetClaimsFromToken(mainConfig.JwtPublicKey, tok)
-
-	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid Token."})
-		return
-	}
-
-	if claims == nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid Token."})
-		return
-	}
-
-	if val, ok := claims["UserInfo"]; ok {
-		userInfo := val.(map[string]interface{})
-		c.JSON(http.StatusOK, gin.H{"Username": userInfo["Username"], "Admin": userInfo["Admin"]})
-	} else {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid Token."})
-	}
-}
-
 func adminRequired(c *gin.Context) {
-    tok, err := c.Cookie("auth_token")
-    if tok == "" || err != nil {
-        c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized."})
-        c.Abort()
-        return
-    }
+    user := getUser(c)
 
-    claims, err := token.GetClaimsFromToken(mainConfig.JwtPublicKey, tok)
+    ldapClient := Client{}
+    err := ldapClient.Connect()
     if err != nil {
-        c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized."})
+        c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
         c.Abort()
         return
     }
+    defer ldapClient.Disconnect()
 
-    var isAdmin bool
-    if val, ok := claims["UserInfo"]; ok {
-        userInfo := val.(map[string]interface{})
-        isAdmin = userInfo["Admin"].(bool)
-    } else {
-        c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized."})
-        c.Abort()
-        return
-    }
-
+    isAdmin, err := ldapClient.IsAdmin(user)
     if !isAdmin {
         c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized."})
         c.Abort()
