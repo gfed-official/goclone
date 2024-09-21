@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"math/rand"
 	"net/http"
 	"strings"
 
@@ -182,3 +183,51 @@ func singleTemplateClone(templateId string, username string) error {
     return nil
 }
 
+func bulkCreateUsers(c *gin.Context) {
+    var users []string
+    if err := c.ShouldBindJSON(&users); err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+        return
+    }
+
+    ldapClient := Client{}
+    err := ldapClient.Connect()
+    if err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+        return
+    }
+
+    badUsers := []string{}
+    for _, user := range users {
+        if user == "" {
+            continue
+        }
+        exists, err := ldapClient.UserExists(user)
+        if err != nil {
+            c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+            return
+        }
+        if exists {
+            fmt.Printf("User %s already exists, skipping\n", user)
+            badUsers = append(badUsers, user)
+            continue
+        }
+
+        var letters = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
+        password := make([]rune, 8)
+        for i := range password {
+            password[i] = letters[rand.Intn(len(letters))]
+        }
+        err = ldapClient.registerUser(user, string(password))
+        if err != nil {
+            badUsers = append(badUsers, user)
+        }
+    }
+
+    if len(badUsers) > 0 {
+        c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Error creating users: %v", badUsers)})
+        return
+    }
+
+    c.JSON(http.StatusOK, gin.H{"message": "Users created successfully!"})
+}
