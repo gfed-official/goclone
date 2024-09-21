@@ -185,7 +185,9 @@ func singleTemplateClone(templateId string, username string) error {
 }
 
 func bulkCreateUsers(c *gin.Context) {
-    var users []string
+    var users struct {
+        Users []string `json:"users"`
+    }
     if err := c.ShouldBindJSON(&users); err != nil {
         c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
         return
@@ -200,7 +202,7 @@ func bulkCreateUsers(c *gin.Context) {
 
     badUsers := []string{}
     goodUsers := []map[string]string{}
-    for _, user := range users {
+    for _, user := range users.Users {
         if user == "" {
             continue
         }
