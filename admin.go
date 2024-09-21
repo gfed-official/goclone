@@ -116,6 +116,7 @@ func bulkDeletePods(filter []string) ([]string, error) {
 
     pods := append(kaminoPods, competitionPods...)
     failed := []string{}
+    wg := errgroup.Group{}
     for _, pod := range pods {
         podName, err := pod.ObjectName(vSphereClient.ctx)
         if err != nil {
@@ -127,14 +128,23 @@ func bulkDeletePods(filter []string) ([]string, error) {
                 continue
             }
             if strings.Contains(podName, f) {
-                err := DestroyResources(podName)
-                if err != nil {
-                    fmt.Printf("Error destroying resources for pod %s: %v\n", podName, err)
-                    failed = append(failed, podName)
-                }
+                wg.Go(func() error {
+                    err := DestroyResources(podName)
+                    if err != nil {
+                        fmt.Printf("Error destroying resources for pod %s: %v\n", podName, err)
+                        failed = append(failed, podName)
+                        return err
+                    }
+                    return nil
+                },)
             }
         }
     }
+
+    if err := wg.Wait(); err != nil {
+        return failed, errors.Wrap(err, "Error deleting pods:")
+    }
+
     return failed, nil
 }
 
