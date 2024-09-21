@@ -39,6 +39,8 @@ func addAdminRoutes(g *gin.RouterGroup) {
 	g.DELETE("/pod/delete/:podId", adminDeletePod)
 	g.POST("/templates/refresh", refreshTemplates)
     g.POST("/pod/delete/bulk", adminBulkDeletePods)
+
+    g.POST("/user/create/bulk", bulkCreateUsers)
 }
 
 func getPresetTemplates(c *gin.Context) {
