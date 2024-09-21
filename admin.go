@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"math/rand"
 	"net/http"
@@ -198,6 +199,7 @@ func bulkCreateUsers(c *gin.Context) {
     }
 
     badUsers := []string{}
+    goodUsers := []map[string]string{}
     for _, user := range users {
         if user == "" {
             continue
@@ -222,12 +224,14 @@ func bulkCreateUsers(c *gin.Context) {
         if err != nil {
             badUsers = append(badUsers, user)
         }
+        goodUsers = append(goodUsers, map[string]string{"username": user, "password": string(password)})
     }
 
     if len(badUsers) > 0 {
-        c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Error creating users: %v", badUsers)})
+        userJson, _ := json.Marshal(badUsers)
+        c.JSON(http.StatusBadRequest, gin.H{"error": userJson})
         return
     }
 
-    c.JSON(http.StatusOK, gin.H{"message": "Users created successfully!"})
+    c.JSON(http.StatusOK, gin.H{"message": "Users created successfully!", "users": goodUsers})
 }
