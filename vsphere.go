@@ -514,19 +514,20 @@ func InitializeClone(podName, username string, portGroup int) (*types.ManagedObj
 }
 
 func DestroyResources(podId string) error {
-	folder, err := finder.Folder(vSphereClient.ctx, podId)
-	if err != nil {
-		log.Println(errors.Wrap(err, "Error finding folder"))
-		return err
-	}
-	DestroyFolder(folder)
-
 	resourcePool, err := GetResourcePool(podId)
 	if err != nil {
 		log.Println(errors.Wrap(err, "Error getting resource pool"))
 		return err
 	}
 	DestroyResourcePool(resourcePool)
+
+	folder, err := finder.Folder(vSphereClient.ctx, podId)
+	if err != nil {
+		log.Println(errors.Wrap(err, "Error finding folder"))
+	} else {
+        DestroyFolder(folder)
+    }
+
 
 	pg, err := GetPortGroup(strings.Join([]string{strings.Split(podId, "_")[0], vCenterConfig.PortGroupSuffix}, "_"))
 	err = DestroyPortGroup(pg.Reference())
