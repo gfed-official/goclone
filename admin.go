@@ -160,11 +160,6 @@ func refreshTemplates(c *gin.Context) {
 }
 
 func singleTemplateClone(templateId string, username string) error {
-    err := vSpherePodLimit(username)
-    if err != nil {
-        return err
-    }
-
     startPG := vCenterConfig.StartingPortGroup
     endPG := vCenterConfig.EndingPortGroup
 
@@ -184,12 +179,52 @@ func singleTemplateClone(templateId string, username string) error {
 	}
 	availablePortGroups.Mu.Unlock()
 
-    err = TemplateClone(templateId, username, nextAvailablePortGroup)
+    err := TemplateClone(templateId, username, nextAvailablePortGroup)
     if err != nil {
         return err
     }
 
     return nil
+}
+
+func competitionSingleTemplateClone(templateId string) (map[string]string, error) {
+    startPG := vCenterConfig.StartingPortGroup
+    endPG := vCenterConfig.EndingPortGroup
+
+    if templateMap[templateId].CompetitionPod {
+        startPG = vCenterConfig.CompetitionStartPortGroup
+        endPG = vCenterConfig.CompetitionEndPortGroup
+    }
+
+	var nextAvailablePortGroup int
+	availablePortGroups.Mu.Lock()
+    for i := startPG; i < endPG; i++ {
+        if _, exists := availablePortGroups.Data[i]; !exists {
+            nextAvailablePortGroup = i
+            availablePortGroups.Data[i] = fmt.Sprintf("%v_%s", nextAvailablePortGroup, vCenterConfig.PortGroupSuffix)
+            break
+        }
+	}
+	availablePortGroups.Mu.Unlock()
+
+    ldapClient := Client{}
+    err := ldapClient.Connect()
+    username := fmt.Sprintf("Team%02d", nextAvailablePortGroup-startPG+1)
+    password, err := createUser(ldapClient, username)
+    if err != nil {
+        return nil, err
+    }
+
+    err = TemplateClone(templateId, username, nextAvailablePortGroup)
+    if err != nil {
+        return nil, err
+    }
+
+    userMap := map[string]string{
+        "username": username,
+        "password": password,
+    }
+    return userMap, nil
 }
 
 func bulkCreateUsers(c *gin.Context) {
@@ -214,23 +249,7 @@ func bulkCreateUsers(c *gin.Context) {
         if user == "" {
             continue
         }
-        exists, err := ldapClient.UserExists(user)
-        if err != nil {
-            c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-            return
-        }
-        if exists {
-            fmt.Printf("User %s already exists, skipping\n", user)
-            badUsers = append(badUsers, user)
-            continue
-        }
-
-        var letters = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
-        password := make([]rune, 8)
-        for i := range password {
-            password[i] = letters[rand.Intn(len(letters))]
-        }
-        err = ldapClient.registerUser(user, string(password))
+        password, err := createUser(ldapClient, user)
         if err != nil {
             badUsers = append(badUsers, user)
         }
@@ -244,4 +263,75 @@ func bulkCreateUsers(c *gin.Context) {
     }
 
     c.JSON(http.StatusOK, gin.H{"message": "Users created successfully!", "users": goodUsers})
+}
+
+func competitionClone(template string, count int) (map[string]string, error) {
+    wg := errgroup.Group{}
+    userMap := map[string]string{}
+    failed := []string{}
+    for i := 1; i <= count; i++ {
+        wg.Go(func() error {
+            res, err := competitionSingleTemplateClone(template)
+            if err != nil {
+                failed = append(failed, fmt.Sprintf("Team%02d", i))
+                return err
+            }
+            userMap[res["username"]] = res["password"]
+            return nil
+        },)
+    }
+
+    if err := wg.Wait(); err != nil {
+        return nil, errors.Wrap(err, "Error cloning pods")
+    }
+
+    if len(failed) > 0 {
+        return userMap, errors.New(fmt.Sprintf("Failed to clone pods for users: %v", failed))
+    }
+
+    return userMap, nil
+}
+
+
+func createNumUsers(count int) (map[string]string, error) {
+    ldapClient := Client{}
+    err := ldapClient.Connect()
+    if err != nil {
+        return map[string]string{}, errors.Wrap(err, "Error connecting to LDAP")
+    }
+    defer ldapClient.Disconnect()
+
+    users := map[string]string{}
+    for i := 1; i <= count; i++ {
+        username := fmt.Sprintf("Team%02d", i)
+        password, err := createUser(ldapClient, username)
+        if err != nil {
+            return map[string]string{}, errors.Wrap(err, "Error creating user")
+        }
+        users[username] = password
+    }
+
+    return users, nil
+}
+
+func createUser(ldapClient Client, username string) (string, error) {
+    exists, err := ldapClient.UserExists(username)
+    if err != nil {
+        return "", errors.Wrap(err, "Error checking if user exists")
+    }
+    if exists {
+        return "", errors.Wrap(err, "User already exists")
+    }
+
+    var letters = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
+    password := make([]rune, 8)
+    for i := range password {
+        password[i] = letters[rand.Intn(len(letters))]
+    }
+    err = ldapClient.registerUser(username, string(password))
+    if err != nil {
+        return "", errors.Wrap(err, "Error registering user")
+    }
+
+    return string(password), nil
 }

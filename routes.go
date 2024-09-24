@@ -36,18 +36,38 @@ func addPrivateRoutes(g *gin.RouterGroup) {
 func addAdminRoutes(g *gin.RouterGroup) {
 	g.GET("/view/pods", adminGetAllPods)
 	g.POST("/pod/clone/bulk", adminBulkClonePods)
+    g.POST("/pod/clone/competiton", cloneCompetitionPods)
 	g.DELETE("/pod/delete/:podId", adminDeletePod)
+    g.DELETE("/pod/delete/bulk", adminBulkDeletePods)
 	g.POST("/templates/refresh", refreshTemplates)
-    g.POST("/pod/delete/bulk", adminBulkDeletePods)
-
     g.POST("/user/create/bulk", bulkCreateUsers)
+}
+
+func cloneCompetitionPods(c *gin.Context) {
+    var form struct {
+        Template string `json:"template"`
+        Count int `json:"count"`
+    }
+
+    err := c.ShouldBindJSON(&form)
+    if err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+        return
+    }
+
+    userMap, err := competitionClone(form.Template, form.Count)
+    if err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+        return
+    }
+    c.JSON(http.StatusOK, gin.H{"message": "Competition pods deployed successfully!", "users": userMap})
 }
 
 func getPresetTemplates(c *gin.Context) {
 	user := getUser(c)
 	templates, err := vSphereGetPresetTemplates(user)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": errors.Wrap(err, "Template presets failed to load").Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"templates": templates})
@@ -56,7 +76,7 @@ func getPresetTemplates(c *gin.Context) {
 func getCustomTemplates(c *gin.Context) {
 	templates, err := vSphereGetCustomTemplates()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": errors.Wrap(err, "Custom templates failed to load").Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"templates": templates})
@@ -67,7 +87,7 @@ func getPods(c *gin.Context) {
 
 	pods, err := vSphereGetPods(username)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": errors.Wrap(err, "Error").Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"pods": pods})
@@ -86,7 +106,7 @@ func deletePod(c *gin.Context) {
 
 	err := DestroyResources(podId)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": errors.Wrap(err, "Error").Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "Pod deleted successfully!"})
@@ -116,7 +136,7 @@ func invokePodCloneCustom(c *gin.Context) {
 
 	err = vSphereCustomClone(form.Name, form.Vmstoclone, form.Nat, username)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": errors.Wrap(err, "Failed to deploy custom pod").Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "Pod deployed successfully!"})
@@ -136,7 +156,7 @@ func adminBulkClonePods(c *gin.Context) {
 
 	err = bulkClonePods(form.Template, form.Users)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": errors.Wrap(err, "Failed to deploy pods").Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "Pods deployed successfully!"})
