@@ -144,7 +144,7 @@ func bulkDeletePods(filter []string) ([]string, error) {
     }
 
     if err := wg.Wait(); err != nil {
-        return failed, errors.Wrap(err, "Error deleting pods:")
+        return failed, errors.Wrap(err, "Error deleting pods")
     }
 
     return failed, nil
@@ -165,16 +165,24 @@ func singleTemplateClone(templateId string, username string) error {
         return err
     }
 
-    var nextAvailablePortGroup int
-    availablePortGroups.Mu.Lock()
-    for i := vCenterConfig.StartingPortGroup; i < vCenterConfig.EndingPortGroup; i++ {
+    startPG := vCenterConfig.StartingPortGroup
+    endPG := vCenterConfig.EndingPortGroup
+
+    if templateMap[templateId].CompetitionPod {
+        startPG = vCenterConfig.CompetitionStartPortGroup
+        endPG = vCenterConfig.CompetitionEndPortGroup
+    }
+
+	var nextAvailablePortGroup int
+	availablePortGroups.Mu.Lock()
+    for i := startPG; i < endPG; i++ {
         if _, exists := availablePortGroups.Data[i]; !exists {
             nextAvailablePortGroup = i
             availablePortGroups.Data[i] = fmt.Sprintf("%v_%s", nextAvailablePortGroup, vCenterConfig.PortGroupSuffix)
             break
         }
-    }
-    availablePortGroups.Mu.Unlock()
+	}
+	availablePortGroups.Mu.Unlock()
 
     err = TemplateClone(templateId, username, nextAvailablePortGroup)
     if err != nil {

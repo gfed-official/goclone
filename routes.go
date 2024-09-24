@@ -103,7 +103,7 @@ func invokePodCloneCustom(c *gin.Context) {
 
 	err := c.ShouldBindJSON(&form)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": errors.Wrap(err, "Missing fields").Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
@@ -130,7 +130,7 @@ func adminBulkClonePods(c *gin.Context) {
 
 	err := c.ShouldBindJSON(&form)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": errors.Wrap(err, "Missing fields").Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
@@ -149,19 +149,22 @@ func adminBulkDeletePods(c *gin.Context) {
 
     err := c.ShouldBindJSON(&form)
     if err != nil {
-        c.JSON(http.StatusBadRequest, gin.H{"error": errors.Wrap(err, "Missing fields").Error()})
+        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
         return
     }
 
     failed, err := bulkDeletePods(form.Filters)
     if err != nil {
-        c.JSON(http.StatusBadRequest, gin.H{"error": errors.Wrap(err, "Failed to delete pods").Error()})
+        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
         return
     }
 
     if len(failed) > 0 {
-        failedStr := strings.Join(failed, ", ")
-        c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to delete pods: " + failedStr})
+        type failedPods struct {
+            Failed []string `json:"failed"`
+        }
+        failed := failedPods{Failed: failed}
+        c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to delete pods", "failed": failed})
         return
     }
     c.JSON(http.StatusOK, gin.H{"message": "Pods deleted successfully!"})
@@ -171,7 +174,7 @@ func invokePodCloneFromTemplate(c *gin.Context) {
 	var jsonData map[string]interface{} // cheaty solution to avoid form struct xd
 	err := c.ShouldBindJSON(&jsonData)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": errors.Wrap(err, "Missing fields").Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
@@ -181,7 +184,7 @@ func invokePodCloneFromTemplate(c *gin.Context) {
     fmt.Printf("User %s is cloning template %s\n", username, template)
 	err = vSphereTemplateClone(template, username)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": errors.Wrap(err, "Failed to deploy template pod").Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
@@ -191,7 +194,7 @@ func invokePodCloneFromTemplate(c *gin.Context) {
 func health(c *gin.Context) {
 	rc, err := vSphereClient.restClient.Session(vSphereClient.ctx)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": errors.Wrap(err, "Failed to get session").Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
@@ -200,7 +203,7 @@ func health(c *gin.Context) {
 		u.User = url.UserPassword(vCenterConfig.VCenterUsername, vCenterConfig.VCenterPassword)
 		err = vSphereClient.restClient.Login(vSphereClient.ctx, u.User)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": errors.Wrap(err, "Failed to refresh Rest Client").Error()})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
 	}
