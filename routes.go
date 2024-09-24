@@ -35,7 +35,7 @@ func addPrivateRoutes(g *gin.RouterGroup) {
 func addAdminRoutes(g *gin.RouterGroup) {
 	g.GET("/view/pods", adminGetAllPods)
 	g.POST("/pod/clone/bulk", adminBulkClonePods)
-    g.POST("/pod/clone/competiton", cloneCompetitionPods)
+    g.POST("/pod/clone/competition", cloneCompetitionPods)
 	g.DELETE("/pod/delete/:podId", adminDeletePod)
     g.DELETE("/pod/delete/bulk", adminBulkDeletePods)
 	g.POST("/templates/refresh", refreshTemplates)
