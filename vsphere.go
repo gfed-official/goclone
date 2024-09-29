@@ -601,6 +601,19 @@ func LoadTemplates() error {
 		templateMap[rpName] = template
 	}
 
+	for key, value := range templateMap {
+		for _, vm := range value.VMs {
+			vmObj := object.NewVirtualMachine(vSphereClient.client, vm.Reference())
+			vmName, err := vmObj.ObjectName(vSphereClient.ctx)
+			if err != nil {
+				log.Println(errors.Wrap(err, "Error getting VM name"))
+				return err
+			}
+			fmt.Println(key, vmName)
+			fmt.Println(value.VMAddresses[vmName])
+		}
+	}
+
 	return nil
 }
 
