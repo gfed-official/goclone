@@ -339,6 +339,34 @@ func TemplateClone(sourceRP, username string, portGroup int) error {
 		}
 	}
 
+	eg := errgroup.Group{}
+	for _, vm := range vmClonesMo {
+		vmObj := object.NewVirtualMachine(vSphereClient.client, vm.Reference())
+		vmName, err := vmObj.ObjectName(vSphereClient.ctx)
+		if err != nil {
+			fmt.Println(errors.Wrap(err, "Error getting VM name"))
+			return err
+		}
+
+		originalName := strings.Split(vmName, "-")[1]
+		username := templateMap[sourceRP].VMUsername[originalName]
+		password := templateMap[sourceRP].VMPassword[originalName]
+		domain := templateMap[sourceRP].VMDomain[originalName]
+		if username == "" || password == "" {
+			continue
+		}
+
+		auth := types.NamePasswordAuthentication{
+			Username: username,
+			Password: password,
+		}
+
+		eg.Go(func() error {
+			fmt.Println("Changing hostname", vmName, username, password)
+			return ChangeHostname(sourceRP, &vm, vmName, domain, auth)
+		})
+	}
+
 	var routerPG *object.DistributedVirtualPortgroup
 	if templateMap[sourceRP].CompetitionPod {
 		routerPG = competitionPG
@@ -383,34 +411,6 @@ func TemplateClone(sourceRP, username string, portGroup int) error {
 				return err
 			}
 		}
-	}
-
-	eg := errgroup.Group{}
-	for _, vm := range vmClonesMo {
-		vmObj := object.NewVirtualMachine(vSphereClient.client, vm.Reference())
-		vmName, err := vmObj.ObjectName(vSphereClient.ctx)
-		if err != nil {
-			fmt.Println(errors.Wrap(err, "Error getting VM name"))
-			return err
-		}
-
-		vmName = strings.Split(vmName, "-")[1]
-		username := templateMap[sourceRP].VMUsername[vmName]
-		password := templateMap[sourceRP].VMPassword[vmName]
-		domain := templateMap[sourceRP].VMDomain[vmName]
-		if username == "" || password == "" {
-			continue
-		}
-
-		auth := types.NamePasswordAuthentication{
-			Username: username,
-			Password: password,
-		}
-
-		eg.Go(func() error {
-			fmt.Println("Changing hostname", vmName, username, password)
-			return ChangeHostname(sourceRP, &vm, vmName, domain, auth)
-		})
 	}
 
 	if err := eg.Wait(); err != nil {
