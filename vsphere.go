@@ -340,31 +340,33 @@ func TemplateClone(sourceRP, username string, portGroup int) error {
 	}
 
 	eg := errgroup.Group{}
-	for _, vm := range vmClonesMo {
-		vm := vm
-		vmObj := object.NewVirtualMachine(vSphereClient.client, vm.Reference())
-		vmName, err := vmObj.ObjectName(vSphereClient.ctx)
-		if err != nil {
-			fmt.Println(errors.Wrap(err, "Error getting VM name"))
-			return err
-		}
+	if templateMap[sourceRP].CompetitionPod {
+		for _, vm := range vmClonesMo {
+			vm := vm
+			vmObj := object.NewVirtualMachine(vSphereClient.client, vm.Reference())
+			vmName, err := vmObj.ObjectName(vSphereClient.ctx)
+			if err != nil {
+				fmt.Println(errors.Wrap(err, "Error getting VM name"))
+				return err
+			}
 
-		originalName := strings.Split(vmName, "-")[1]
-		username := templateMap[sourceRP].VMUsername[originalName]
-		password := templateMap[sourceRP].VMPassword[originalName]
-		domain := templateMap[sourceRP].VMDomain[originalName]
-		if username == "" || password == "" {
-			continue
-		}
+			originalName := strings.Split(vmName, "-")[1]
+			username := templateMap[sourceRP].VMUsername[originalName]
+			password := templateMap[sourceRP].VMPassword[originalName]
+			domain := templateMap[sourceRP].VMDomain[originalName]
+			if username == "" || password == "" {
+				continue
+			}
 
-		auth := types.NamePasswordAuthentication{
-			Username: username,
-			Password: password,
-		}
+			auth := types.NamePasswordAuthentication{
+				Username: username,
+				Password: password,
+			}
 
-		eg.Go(func() error {
-			return ChangeHostname(sourceRP, &vm, vmName, domain, auth)
-		})
+			eg.Go(func() error {
+				return ChangeHostname(sourceRP, &vm, vmName, domain, auth)
+			})
+		}
 	}
 
 	var routerPG *object.DistributedVirtualPortgroup
@@ -414,19 +416,8 @@ func TemplateClone(sourceRP, username string, portGroup int) error {
 	}
 
 	if err := eg.Wait(); err != nil {
+		fmt.Println(err)
 		return err
-	}
-
-	for _, vm := range vmClonesMo {
-		vmObj := object.NewVirtualMachine(vSphereClient.client, vm.Reference())
-		task, err := vmObj.PowerOff(vSphereClient.ctx)
-		if err != nil {
-			return err
-		}
-		err = task.Wait(vSphereClient.ctx)
-		if err != nil {
-			return err
-		}
 	}
 
 	SnapshotVMs(vmClonesMo, "Base")
@@ -754,18 +745,4 @@ func LoadTemplate(rp *object.ResourcePool, name string) (Template, error) {
 	}
 
 	return template, nil
-}
-
-func GetVMGuestOS(vms []mo.VirtualMachine) (map[string]string, error) {
-	var vmGuestOS = make(map[string]string)
-	for _, vm := range vms {
-		vmObj := object.NewVirtualMachine(vSphereClient.client, vm.Reference())
-		vmName, err := vmObj.ObjectName(vSphereClient.ctx)
-		if err != nil {
-			fmt.Println(errors.Wrap(err, "Error getting VM name"))
-			return nil, err
-		}
-		vmGuestOS[vmName] = strings.ToLower(vm.Config.GuestFullName)
-	}
-	return vmGuestOS, nil
 }

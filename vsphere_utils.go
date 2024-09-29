@@ -716,7 +716,7 @@ func ChangeHostname(template string, vm *mo.VirtualMachine, hostname, domain str
 	if strings.Contains(templateMap[template].VMGuestOS[originalName], "windows") {
 		program = types.GuestProgramSpec{
 			ProgramPath: "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
-			Arguments:   strings.Join([]string{"-C", "'Rename-Computer -NewName", hostname, "-Force -Restart'"}, " "),
+			Arguments:   strings.Join([]string{"-C", "Rename-Computer -NewName", hostname, "-Force -Restart"}, " "),
 		}
 	} else {
 		if domain != "" {
@@ -760,4 +760,18 @@ func GetAttributeKeyID(attrName string) (int32, error) {
 	}
 
 	return 0, errors.New("Attribute not found")
+}
+
+func GetVMGuestOS(vms []mo.VirtualMachine) (map[string]string, error) {
+	var vmGuestOS = make(map[string]string)
+	for _, vm := range vms {
+		vmObj := object.NewVirtualMachine(vSphereClient.client, vm.Reference())
+		vmName, err := vmObj.ObjectName(vSphereClient.ctx)
+		if err != nil {
+			fmt.Println(errors.Wrap(err, "Error getting VM name"))
+			return nil, err
+		}
+		vmGuestOS[vmName] = strings.ToLower(vm.Config.GuestFullName)
+	}
+	return vmGuestOS, nil
 }
