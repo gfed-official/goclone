@@ -732,6 +732,7 @@ func GetVMAddresses(vms []mo.VirtualMachine) (map[string]string, error) {
 		}
 
 		vmAddresses[vmName] = fmt.Sprintf("%s/%s", ipAddr.String(), netmask.String())
+		fmt.Println("NETWORK", vmAddresses[vmName])
 	}
 	return vmAddresses, nil
 }
