@@ -740,11 +740,13 @@ func GetVMGuestOS(vms []mo.VirtualMachine) (map[string]string, error) {
 	var vmGuestOS = make(map[string]string)
 	for _, vm := range vms {
 		vmObj := object.NewVirtualMachine(vSphereClient.client, vm.Reference())
+		fmt.Println(vmObj.Name())
 		vmName, err := vmObj.ObjectName(vSphereClient.ctx)
 		if err != nil {
 			fmt.Println(errors.Wrap(err, "Error getting VM name"))
 			return nil, err
 		}
+		fmt.Println(vmName)
 		vmGuestOS[vmName] = strings.ToLower(vm.Config.GuestFullName)
 	}
 	return vmGuestOS, nil
