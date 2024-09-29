@@ -394,6 +394,7 @@ func TemplateClone(sourceRP, username string, portGroup int) error {
 			return err
 		}
 
+		vmName = strings.Split(vmName, "-")[1]
 		username := templateMap[sourceRP].VMUsername[vmName]
 		password := templateMap[sourceRP].VMPassword[vmName]
 		domain := templateMap[sourceRP].VMDomain[vmName]
@@ -693,8 +694,6 @@ func LoadTemplate(rp *object.ResourcePool, name string) (Template, error) {
 			domainMap[vmName] = ""
 			continue
 		}
-		fmt.Println("username: ", username)
-		fmt.Println("password: ", password)
 		usernameMap[vmName] = username
 		passwordMap[vmName] = password
 		domainMap[vmName] = ""
