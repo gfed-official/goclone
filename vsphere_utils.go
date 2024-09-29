@@ -716,6 +716,9 @@ func ChangeHostname(template string, vm *mo.VirtualMachine, hostname, domain str
 		return err
 	}
 
+	fmt.Println("Debug: ", templateMap[template].VMGuestOS[vmName])
+	fmt.Println("Debug: ", templateMap[template])
+
 	var program types.GuestProgramSpec
 	if strings.Contains(templateMap[template].VMGuestOS[vmName], "windows") {
 		program = types.GuestProgramSpec{

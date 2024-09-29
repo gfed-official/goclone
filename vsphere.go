@@ -341,6 +341,7 @@ func TemplateClone(sourceRP, username string, portGroup int) error {
 
 	eg := errgroup.Group{}
 	for _, vm := range vmClonesMo {
+		vm := vm
 		vmObj := object.NewVirtualMachine(vSphereClient.client, vm.Reference())
 		vmName, err := vmObj.ObjectName(vSphereClient.ctx)
 		if err != nil {
