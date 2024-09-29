@@ -692,11 +692,7 @@ func GetChildResourcePools(resourcePool string) ([]*object.ResourcePool, error) 
 
 func ChangeHostname(template string, vm *mo.VirtualMachine, hostname, domain string, auth types.NamePasswordAuthentication) error {
 	vmObj := object.NewVirtualMachine(vSphereClient.client, vm.Reference())
-	vmName, err := vmObj.ObjectName(vSphereClient.ctx)
-	if err != nil {
-		fmt.Println(errors.Wrap(err, "Error getting VM name"))
-		return err
-	}
+	originalName := strings.Split(vm.Name, "-")[1]
 
 	task, err := vmObj.PowerOn(vSphereClient.ctx)
 	if err != nil {
@@ -716,11 +712,8 @@ func ChangeHostname(template string, vm *mo.VirtualMachine, hostname, domain str
 		return err
 	}
 
-	fmt.Println("Debug: ", templateMap[template].VMGuestOS[vmName])
-	fmt.Println("Debug: ", templateMap[template])
-
 	var program types.GuestProgramSpec
-	if strings.Contains(templateMap[template].VMGuestOS[vmName], "windows") {
+	if strings.Contains(templateMap[template].VMGuestOS[originalName], "windows") {
 		program = types.GuestProgramSpec{
 			ProgramPath: "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
 			Arguments:   strings.Join([]string{"-C", "'Rename-Computer -NewName", hostname, "-Force -Restart'"}, " "),
@@ -736,7 +729,6 @@ func ChangeHostname(template string, vm *mo.VirtualMachine, hostname, domain str
 	}
 	err = RunProgramOnVM(vm, program, auth)
 	if err != nil {
-		fmt.Println("Debug: ", vmName, templateMap[template].VMGuestOS[vmName])
 		fmt.Println(errors.Wrap(err, "Error running program on VM"))
 		return err
 	}
