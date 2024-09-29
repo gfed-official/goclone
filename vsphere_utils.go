@@ -694,18 +694,16 @@ func customizeVM(vms []mo.VirtualMachine, templateName string) error {
 			return err
 		}
 		guestOS := templateMap[templateName].VMGuestOS[vmName]
+		fmt.Sprintf("VM Name: %s, Guest OS: %s", vmName, guestOS)
 		ip := templateMap[templateName].VMAddresses[vmName]
+		fmt.Sprintf("VM Name: %s, IP: %s", vmName, ip)
 		if ip == "" || guestOS == "" {
 			fmt.Println("No IP or guest OS found for VM")
 			continue
 		}
 
-		ipAddr, network, err := net.ParseCIDR(ip)
-		if err != nil {
-			fmt.Println(errors.Wrap(err, "Error parsing CIDR"))
-			continue
-		}
-		netmask := net.IP(network.Mask)
+		ipAddr := strings.Split(ip, "/")[0]
+		netmask := strings.Split(ip, "/")[1]
 
 		var spec *types.CustomizationSpec
 		spec = &types.CustomizationSpec{
@@ -726,9 +724,9 @@ func customizeVM(vms []mo.VirtualMachine, templateName string) error {
 		}
 
 		nic := &spec.NicSettingMap[0]
-		if ipAddr != nil {
-			nic.Adapter.Ip = &types.CustomizationFixedIp{IpAddress: ipAddr.String()}
-			nic.Adapter.SubnetMask = netmask.String()
+		if ipAddr != "" {
+			nic.Adapter.Ip = &types.CustomizationFixedIp{IpAddress: ipAddr}
+			nic.Adapter.SubnetMask = netmask
 		} else {
 			nic.Adapter.Ip = &types.CustomizationDhcpIpGenerator{}
 		}
