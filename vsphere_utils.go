@@ -179,7 +179,7 @@ func GetVMsInResourcePool(rp types.ManagedObjectReference) ([]mo.VirtualMachine,
 	}
 
 	var vms []mo.VirtualMachine
-	err = pc.Retrieve(vSphereClient.ctx, rpData.Vm, []string{"config", "name"}, &vms)
+	err = pc.Retrieve(vSphereClient.ctx, rpData.Vm, []string{"config", "name", "customValue"}, &vms)
 	if err != nil {
 		log.Println(errors.Wrap(err, "Failed to get references for Virtual Machines"))
 		return nil, err
@@ -684,65 +684,72 @@ func GetChildResourcePools(resourcePool string) ([]*object.ResourcePool, error) 
 	return rpList, nil
 }
 
-func customizeVM(vms []mo.VirtualMachine, templateName string) error {
-	for _, vm := range vms {
-		vmObj := object.NewVirtualMachine(vSphereClient.client, vm.Reference())
-		vmName, err := vmObj.ObjectName(vSphereClient.ctx)
-		if err != nil {
-			fmt.Println(errors.Wrap(err, "Error getting VM name"))
-			return err
-		}
-
-		vmName = strings.Split(vmName, "-")[1]
-
-		guestOS := templateMap[templateName].VMGuestOS[vmName]
-		ip := templateMap[templateName].VMAddresses[vmName]
-		if ip == "" || guestOS == "" {
-			fmt.Println("No IP or guest OS found for VM")
-			continue
-		}
-
-		ipAddr := strings.Split(ip, "/")[0]
-		netmask := strings.Split(ip, "/")[1]
-
-		var spec *types.CustomizationSpec
-		spec = &types.CustomizationSpec{
-			NicSettingMap: make([]types.CustomizationAdapterMapping, 1),
-		}
-		if strings.Contains(guestOS, "windows") {
-			spec.Identity = &types.CustomizationSysprep{
-				UserData: types.CustomizationUserData{
-					FullName:     "SDC",
-					OrgName:      "SDC",
-					ComputerName: new(types.CustomizationVirtualMachineName),
-				},
-			}
-		} else {
-			spec.Identity = &types.CustomizationLinuxPrep{
-				HostName: new(types.CustomizationVirtualMachineName),
-			}
-		}
-
-		nic := &spec.NicSettingMap[0]
-		if ipAddr != "" {
-			nic.Adapter.Ip = &types.CustomizationFixedIp{IpAddress: ipAddr}
-			nic.Adapter.SubnetMask = netmask
-		} else {
-			nic.Adapter.Ip = &types.CustomizationDhcpIpGenerator{}
-		}
-
-		task, err := vmObj.Customize(vSphereClient.ctx, *spec)
-		if err != nil {
-			fmt.Println(errors.Wrap(err, "Error customizing VM"))
-		}
-
-		err = task.Wait(vSphereClient.ctx)
-		if err != nil {
-			fmt.Println(errors.Wrap(err, "Error waiting for task"))
-		}
-
-		fmt.Println("VM customization complete")
+func ChangeHostname(template string, vm *mo.VirtualMachine, hostname, domain string, auth types.NamePasswordAuthentication) error {
+	vmObj := object.NewVirtualMachine(vSphereClient.client, vm.Reference())
+	vmName, err := vmObj.ObjectName(vSphereClient.ctx)
+	if err != nil {
+		fmt.Println(errors.Wrap(err, "Error getting VM name"))
+		return err
 	}
-	return nil
 
+	task, err := vmObj.Rename(vSphereClient.ctx, hostname)
+	if err != nil {
+		fmt.Println(errors.Wrap(err, "Error renaming VM"))
+		return err
+	}
+
+	err = task.Wait(vSphereClient.ctx)
+	if err != nil {
+		fmt.Println(errors.Wrap(err, "Error waiting for task"))
+		return err
+	}
+
+	var program types.GuestProgramSpec
+	if strings.Contains(templateMap[template].VMGuestOS[vmName], "windows") {
+		program = types.GuestProgramSpec{
+			ProgramPath: "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+			Arguments:   strings.Join([]string{"-C", "'Rename-Computer -NewName", hostname, "-Force -Restart'"}, " "),
+		}
+	} else {
+		if domain != "" {
+			hostname = strings.Join([]string{hostname, domain}, ".")
+		}
+		program = types.GuestProgramSpec{
+			ProgramPath: "/bin/echo",
+			Arguments:   strings.Join([]string{"-n", hostname, ">", "/etc/hostname"}, " "),
+		}
+	}
+	err = RunProgramOnVM(vm, program, auth)
+	if err != nil {
+		fmt.Println(errors.Wrap(err, "Error running program on VM"))
+		return err
+	}
+
+	return nil
+}
+
+func GetVMAttribute(vm *mo.VirtualMachine, key int32) (string, error) {
+	for _, attr := range vm.CustomValue {
+		attr := attr.(*types.CustomFieldStringValue)
+		if attr.Key == key {
+			return attr.Value, nil
+		}
+	}
+	return "", errors.New("Attribute not found")
+}
+
+func GetAttributeKeyID(attrName string) (int32, error) {
+	customFieldsList, err := customFieldsManager.Field(vSphereClient.ctx)
+	if err != nil {
+		log.Println(errors.Wrap(err, "Error getting custom fields list"))
+		return 0, err
+	}
+
+	for _, field := range customFieldsList {
+		if field.Name == attrName {
+			return field.Key, nil
+		}
+	}
+
+	return 0, errors.New("Attribute not found")
 }

@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"log"
-	"net"
 	"regexp"
 	"slices"
 	"strconv"
@@ -18,6 +17,7 @@ import (
 	"github.com/vmware/govmomi/property"
 	"github.com/vmware/govmomi/vim25/mo"
 	"github.com/vmware/govmomi/vim25/types"
+	"golang.org/x/sync/errgroup"
 )
 
 type RWPortGroupMap struct {
@@ -35,6 +35,7 @@ type Template struct {
 	Name           string
 	SourceRP       *object.ResourcePool
 	VMs            []mo.VirtualMachine
+	VMObjects      []object.VirtualMachine
 	Natted         bool
 	NoRouter       bool
 	CompetitionPod bool
@@ -42,6 +43,9 @@ type Template struct {
 	VMsToHide      []*mo.VirtualMachine
 	VMAddresses    map[string]string
 	VMGuestOS      map[string]string
+	VMUsername     map[string]string
+	VMPassword     map[string]string
+	VMDomain       map[string]string
 }
 
 var (
@@ -381,9 +385,33 @@ func TemplateClone(sourceRP, username string, portGroup int) error {
 		}
 	}
 
-	err = customizeVM(vmClonesMo, templateMap[sourceRP].Name)
-	if err != nil {
-		log.Println(errors.Wrap(err, "Error customizing VM"))
+	eg := errgroup.Group{}
+	for _, vm := range vmClonesMo {
+		vmObj := object.NewVirtualMachine(vSphereClient.client, vm.Reference())
+		vmName, err := vmObj.ObjectName(vSphereClient.ctx)
+		if err != nil {
+			fmt.Println(errors.Wrap(err, "Error getting VM name"))
+			return err
+		}
+
+		username := templateMap[sourceRP].VMUsername[vmName]
+		password := templateMap[sourceRP].VMPassword[vmName]
+		domain := templateMap[sourceRP].VMDomain[vmName]
+		if username == "" || password == "" {
+			continue
+		}
+
+		auth := types.NamePasswordAuthentication{
+			Username: username,
+			Password: password,
+		}
+
+		eg.Go(func() error {
+			return ChangeHostname(sourceRP, &vm, vmName, domain, auth)
+		})
+	}
+
+	if err := eg.Wait(); err != nil {
 		return err
 	}
 
@@ -616,19 +644,13 @@ func LoadTemplate(rp *object.ResourcePool, name string) (Template, error) {
 	competitionPod := false
 	pg := wanPG
 	for _, tag := range tagsOnTmpl {
-		if tag.Name == "natted" {
-			natted = true
-		} else if tag.Name == "NoRouter" {
-			noRouter = true
-		} else if strings.Contains(tag.Name, vCenterConfig.PortGroupSuffix) {
-			pg, err := GetPortGroup(tag.Name)
-			if err != nil {
-				log.Println(errors.Wrap(err, "Error getting port group"))
-				return Template{}, err
-			}
-			pg = object.NewDistributedVirtualPortgroup(vSphereClient.client, pg.Reference())
-		} else if tag.Name == "CompetitionPod" {
+		switch tag.Name {
+		case "CompetitionPod":
 			competitionPod = true
+		case "NoRouter":
+			noRouter = true
+		case "natted":
+			natted = true
 		}
 	}
 
@@ -638,16 +660,41 @@ func LoadTemplate(rp *object.ResourcePool, name string) (Template, error) {
 		return Template{}, err
 	}
 
-	addressMap, err := GetVMAddresses(vms)
-	if err != nil {
-		log.Println(errors.Wrap(err, "Error getting VM addresses"))
-		return Template{}, err
-	}
-
 	guestOSMap, err := GetVMGuestOS(vms)
 	if err != nil {
 		log.Println(errors.Wrap(err, "Error getting VM guest OS"))
 		return Template{}, err
+	}
+
+	usernameMap := make(map[string]string)
+	passwordMap := make(map[string]string)
+	domainMap := make(map[string]string)
+	for _, vm := range vms {
+		vmObj := object.NewVirtualMachine(vSphereClient.client, vm.Reference())
+		vmName, err := vmObj.ObjectName(vSphereClient.ctx)
+		if err != nil {
+			fmt.Println(errors.Wrap(err, "Error getting VM name"))
+			return Template{}, err
+		}
+		username, err := GetVMAttribute(&vm, usernameKeyID)
+		if err != nil {
+			fmt.Println(errors.Wrap(err, "Error getting VM username"))
+			usernameMap[vmName] = ""
+			passwordMap[vmName] = ""
+			domainMap[vmName] = ""
+			continue
+		}
+		password, err := GetVMAttribute(&vm, passwordKeyID)
+		if err != nil {
+			fmt.Println(errors.Wrap(err, "Error getting VM password"))
+			usernameMap[vmName] = ""
+			passwordMap[vmName] = ""
+			domainMap[vmName] = ""
+			continue
+		}
+		usernameMap[vmName] = username
+		passwordMap[vmName] = password
+		domainMap[vmName] = ""
 	}
 
 	var router *mo.VirtualMachine
@@ -686,54 +733,13 @@ func LoadTemplate(rp *object.ResourcePool, name string) (Template, error) {
 		NoRouter:       noRouter,
 		WanPG:          pg,
 		VMsToHide:      vmsToHide,
-		VMAddresses:    addressMap,
 		VMGuestOS:      guestOSMap,
+		VMUsername:     usernameMap,
+		VMPassword:     passwordMap,
+		VMDomain:       domainMap,
 	}
 
 	return template, nil
-}
-
-func GetVMAddresses(vms []mo.VirtualMachine) (map[string]string, error) {
-	var vmAddresses = make(map[string]string)
-	for _, vm := range vms {
-		vmObj := object.NewVirtualMachine(vSphereClient.client, vm.Reference())
-		vmName, err := vmObj.ObjectName(vSphereClient.ctx)
-		if err != nil {
-			fmt.Println(errors.Wrap(err, "Error getting VM name"))
-			return nil, err
-		}
-
-		tagsOnVM, err := tagManager.GetAttachedTags(vSphereClient.ctx, vm.Reference())
-		if err != nil {
-			fmt.Println(errors.Wrap(err, "Error getting tags on VM"))
-			vmAddresses[vmName] = ""
-			continue
-		}
-
-		var ipAddr net.IP
-		var netmask net.IP
-		for _, tag := range tagsOnVM {
-			cat, err := tagManager.GetCategory(vSphereClient.ctx, tag.CategoryID)
-			if err != nil {
-				fmt.Println(errors.Wrap(err, "Error getting category"))
-				vmAddresses[vmName] = ""
-				continue
-			}
-			if cat.Name == "Network" {
-				ip, network, err := net.ParseCIDR(tag.Name)
-				if err != nil {
-					fmt.Println(errors.Wrap(err, "Error parsing CIDR"))
-					vmAddresses[vmName] = ""
-					continue
-				}
-				netmask = net.IP(network.Mask)
-				ipAddr = ip
-			}
-		}
-
-		vmAddresses[vmName] = fmt.Sprintf("%s/%s", ipAddr.String(), netmask.String())
-	}
-	return vmAddresses, nil
 }
 
 func GetVMGuestOS(vms []mo.VirtualMachine) (map[string]string, error) {
@@ -746,6 +752,7 @@ func GetVMGuestOS(vms []mo.VirtualMachine) (map[string]string, error) {
 			return nil, err
 		}
 		vmGuestOS[vmName] = strings.ToLower(vm.Config.GuestFullName)
+		fmt.Println("3", vmGuestOS[vmName])
 	}
 	return vmGuestOS, nil
 }

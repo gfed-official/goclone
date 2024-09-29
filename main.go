@@ -37,21 +37,24 @@ var (
 )
 
 var (
-	authManager        *object.AuthorizationManager
-	cloneRole          *types.AuthorizationRole
-	customCloneRole    *types.AuthorizationRole
-	datastore          *object.Datastore
-    destinationFolder  *object.Folder
-	dvsMo              mo.DistributedVirtualSwitch
-	finder             *find.Finder
-	noAccessRole       *types.AuthorizationRole
-	tagManager         *tags.Manager
-	targetResourcePool *object.ResourcePool
-	templateFolder     *object.Folder
-	vSphereClient      *VSphereClient
-	wanPG              *object.DistributedVirtualPortgroup
-    competitionPG      *object.DistributedVirtualPortgroup
-    competitionResourcePool *object.ResourcePool
+	authManager             *object.AuthorizationManager
+	cloneRole               *types.AuthorizationRole
+	customCloneRole         *types.AuthorizationRole
+	customFieldsManager     *object.CustomFieldsManager
+	datastore               *object.Datastore
+	destinationFolder       *object.Folder
+	dvsMo                   mo.DistributedVirtualSwitch
+	finder                  *find.Finder
+	noAccessRole            *types.AuthorizationRole
+	passwordKeyID           int32
+	tagManager              *tags.Manager
+	targetResourcePool      *object.ResourcePool
+	templateFolder          *object.Folder
+	usernameKeyID           int32
+	vSphereClient           *VSphereClient
+	wanPG                   *object.DistributedVirtualPortgroup
+	competitionPG           *object.DistributedVirtualPortgroup
+	competitionResourcePool *object.ResourcePool
 )
 
 func init() {
@@ -181,40 +184,50 @@ func InitializeGovmomi() {
 		log.Fatalln(errors.Wrap(err, "Error finding template folder"))
 	}
 
-    destinationFolder, err = finder.Folder(vSphereClient.ctx, vCenterConfig.DestinationFolder)
-    if err != nil {
-        log.Fatalln(errors.Wrap(err, "Error finding destination folder"))
-    }
+	destinationFolder, err = finder.Folder(vSphereClient.ctx, vCenterConfig.DestinationFolder)
+	if err != nil {
+		log.Fatalln(errors.Wrap(err, "Error finding destination folder"))
+	}
 
 	tagManager = tags.NewManager(vSphereClient.restClient)
 
 	targetResourcePool, err = finder.ResourcePool(vSphereClient.ctx, vCenterConfig.TargetResourcePool)
-    if err != nil {
-        log.Fatalln(errors.Wrap(err, "Error finding target resource pool"))
-    }
+	if err != nil {
+		log.Fatalln(errors.Wrap(err, "Error finding target resource pool"))
+	}
 
-    competitionResourcePool, err = finder.ResourcePool(vSphereClient.ctx, vCenterConfig.CompetitionResourcePool)
-    if err != nil {
-        log.Fatalln(errors.Wrap(err, "Error finding competition resource pool"))
-    }
+	competitionResourcePool, err = finder.ResourcePool(vSphereClient.ctx, vCenterConfig.CompetitionResourcePool)
+	if err != nil {
+		log.Fatalln(errors.Wrap(err, "Error finding competition resource pool"))
+	}
 
 	pg, err := finder.Network(vSphereClient.ctx, vCenterConfig.DefaultWanPortGroup)
 	if err != nil {
 		log.Fatalln(errors.Wrap(err, "Error finding WAN port group"))
 	}
 	wanPG = object.NewDistributedVirtualPortgroup(vSphereClient.client, pg.Reference())
-    
-    compPG, err := finder.Network(vSphereClient.ctx, vCenterConfig.CompetitionWanPortGroup)
-    if err != nil {
-        log.Fatalln(errors.Wrap(err, "Error finding competition WAN port group"))
-    }
-    competitionPG = object.NewDistributedVirtualPortgroup(vSphereClient.client, compPG.Reference())
 
+	compPG, err := finder.Network(vSphereClient.ctx, vCenterConfig.CompetitionWanPortGroup)
+	if err != nil {
+		log.Fatalln(errors.Wrap(err, "Error finding competition WAN port group"))
+	}
+	competitionPG = object.NewDistributedVirtualPortgroup(vSphereClient.client, compPG.Reference())
 
 	authManager = object.NewAuthorizationManager(vSphereClient.client)
 	roles, err := authManager.RoleList(vSphereClient.ctx)
 	if err != nil {
 		log.Fatalln(errors.Wrap(err, "Error listing roles"))
+	}
+
+	customFieldsManager = object.NewCustomFieldsManager(vSphereClient.client)
+	usernameKeyID, err = GetAttributeKeyID("goclone.username")
+	if err != nil {
+		log.Fatalln(errors.Wrap(err, "Error getting Username attribute key ID"))
+	}
+
+	passwordKeyID, err = GetAttributeKeyID("goclone.password")
+	if err != nil {
+		log.Fatalln(errors.Wrap(err, "Error getting Password attribute key ID"))
 	}
 
 	for _, role := range roles {
