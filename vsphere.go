@@ -407,6 +407,7 @@ func TemplateClone(sourceRP, username string, portGroup int) error {
 		}
 
 		eg.Go(func() error {
+			fmt.Println("Changing hostname", vmName, username, password)
 			return ChangeHostname(sourceRP, &vm, vmName, domain, auth)
 		})
 	}
@@ -692,6 +693,8 @@ func LoadTemplate(rp *object.ResourcePool, name string) (Template, error) {
 			domainMap[vmName] = ""
 			continue
 		}
+		fmt.Println("username: ", username)
+		fmt.Println("password: ", password)
 		usernameMap[vmName] = username
 		passwordMap[vmName] = password
 		domainMap[vmName] = ""
