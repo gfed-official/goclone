@@ -578,6 +578,7 @@ func RunProgramOnVM(vm *mo.VirtualMachine, program types.GuestProgramSpec, auth 
 
 	timeout := time.After(2 * time.Minute)
 	ticker := time.Tick(2 * time.Second)
+	retries := 0
 	for {
 		select {
 		case <-timeout:
@@ -599,6 +600,11 @@ func RunProgramOnVM(vm *mo.VirtualMachine, program types.GuestProgramSpec, auth 
 
 				_, err = procMan.StartProgram(vSphereClient.ctx, &auth, &program)
 				if err != nil {
+					if retries < 2 && strings.Contains(err.Error(), "Failed to authenticate") {
+						retries++
+						time.Sleep(time.Second * 20)
+						continue
+					}
 					log.Println(errors.Wrap(err, "Error starting program"))
 					return err
 				}
