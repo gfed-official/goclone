@@ -180,7 +180,7 @@ func GetVMsInResourcePool(rp types.ManagedObjectReference) ([]mo.VirtualMachine,
 	}
 
 	var vms []mo.VirtualMachine
-	err = pc.Retrieve(vSphereClient.ctx, rpData.Vm, []string{"name"}, &vms)
+	err = pc.Retrieve(vSphereClient.ctx, rpData.Vm, []string{"config", "name"}, &vms)
 	if err != nil {
 		log.Println(errors.Wrap(err, "Failed to get references for Virtual Machines"))
 		return nil, err
