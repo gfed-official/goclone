@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"net"
 	"regexp"
 	"slices"
 	"strconv"
@@ -39,6 +40,8 @@ type Template struct {
 	CompetitionPod bool
 	WanPG          *object.DistributedVirtualPortgroup
 	VMsToHide      []*mo.VirtualMachine
+	VMAddresses    map[string]string
+	VMGuestOS      map[string]string
 }
 
 var (
@@ -316,11 +319,9 @@ func TemplateClone(sourceRP, username string, portGroup int) error {
 	}
 
 	var vmClonesMo []mo.VirtualMachine
-	var vmClonesObj []*object.VirtualMachine
 	var router *mo.VirtualMachine
 	for _, vm := range vmClones {
 		vmObj := object.NewVirtualMachine(vSphereClient.client, vm.Reference())
-		vmClonesObj = append(vmClonesObj, vmObj)
 		var vm mo.VirtualMachine
 
 		err = vmObj.Properties(vSphereClient.ctx, vmObj.Reference(), []string{"name"}, &vm)
@@ -380,7 +381,11 @@ func TemplateClone(sourceRP, username string, portGroup int) error {
 		}
 	}
 
-	customizeVM(vmClonesObj)
+	err = customizeVM(vmClonesMo, templateMap[sourceRP].Name)
+	if err != nil {
+		log.Println(errors.Wrap(err, "Error customizing VM"))
+		return err
+	}
 
 	SnapshotVMs(vmClonesMo, "Base")
 	permission := types.Permission{
@@ -613,19 +618,16 @@ func LoadTemplate(rp *object.ResourcePool, name string) (Template, error) {
 	for _, tag := range tagsOnTmpl {
 		if tag.Name == "natted" {
 			natted = true
-		}
-		if tag.Name == "NoRouter" {
+		} else if tag.Name == "NoRouter" {
 			noRouter = true
-		}
-		if strings.Contains(tag.Name, vCenterConfig.PortGroupSuffix) {
+		} else if strings.Contains(tag.Name, vCenterConfig.PortGroupSuffix) {
 			pg, err := GetPortGroup(tag.Name)
 			if err != nil {
 				log.Println(errors.Wrap(err, "Error getting port group"))
 				return Template{}, err
 			}
 			pg = object.NewDistributedVirtualPortgroup(vSphereClient.client, pg.Reference())
-		}
-		if tag.Name == "CompetitionPod" {
+		} else if tag.Name == "CompetitionPod" {
 			competitionPod = true
 		}
 	}
@@ -633,6 +635,18 @@ func LoadTemplate(rp *object.ResourcePool, name string) (Template, error) {
 	vms, err := GetVMsInResourcePool(rp.Reference())
 	if err != nil {
 		log.Println(errors.Wrap(err, "Error getting VMs in resource pool"))
+		return Template{}, err
+	}
+
+	addressMap, err := GetVMAddresses(vms)
+	if err != nil {
+		log.Println(errors.Wrap(err, "Error getting VM addresses"))
+		return Template{}, err
+	}
+
+	guestOSMap, err := GetVMGuestOS(vms)
+	if err != nil {
+		log.Println(errors.Wrap(err, "Error getting VM guest OS"))
 		return Template{}, err
 	}
 
@@ -672,7 +686,66 @@ func LoadTemplate(rp *object.ResourcePool, name string) (Template, error) {
 		NoRouter:       noRouter,
 		WanPG:          pg,
 		VMsToHide:      vmsToHide,
+		VMAddresses:    addressMap,
+		VMGuestOS:      guestOSMap,
 	}
 
 	return template, nil
+}
+
+func GetVMAddresses(vms []mo.VirtualMachine) (map[string]string, error) {
+	var vmAddresses = make(map[string]string)
+	for _, vm := range vms {
+		vmObj := object.NewVirtualMachine(vSphereClient.client, vm.Reference())
+		vmName, err := vmObj.ObjectName(vSphereClient.ctx)
+		if err != nil {
+			fmt.Println(errors.Wrap(err, "Error getting VM name"))
+			return nil, err
+		}
+
+		tagsOnVM, err := tagManager.GetAttachedTags(vSphereClient.ctx, vm.Reference())
+		if err != nil {
+			fmt.Println(errors.Wrap(err, "Error getting tags on VM"))
+			vmAddresses[vmName] = ""
+			continue
+		}
+
+		var ipAddr net.IP
+		var netmask net.IP
+		for _, tag := range tagsOnVM {
+			cat, err := tagManager.GetCategory(vSphereClient.ctx, tag.CategoryID)
+			if err != nil {
+				fmt.Println(errors.Wrap(err, "Error getting category"))
+				vmAddresses[vmName] = ""
+				continue
+			}
+			if cat.Name == "Network" {
+				ip, network, err := net.ParseCIDR(tag.Name)
+				if err != nil {
+					fmt.Println(errors.Wrap(err, "Error parsing CIDR"))
+					vmAddresses[vmName] = ""
+					continue
+				}
+				netmask = net.IP(network.Mask)
+				ipAddr = ip
+			}
+		}
+
+		vmAddresses[vmName] = fmt.Sprintf("%s/%s", ipAddr.String(), netmask.String())
+	}
+	return vmAddresses, nil
+}
+
+func GetVMGuestOS(vms []mo.VirtualMachine) (map[string]string, error) {
+	var vmGuestOS = make(map[string]string)
+	for _, vm := range vms {
+		vmObj := object.NewVirtualMachine(vSphereClient.client, vm.Reference())
+		vmName, err := vmObj.ObjectName(vSphereClient.ctx)
+		if err != nil {
+			fmt.Println(errors.Wrap(err, "Error getting VM name"))
+			return nil, err
+		}
+		vmGuestOS[vmName] = strings.ToLower(vm.Config.GuestFullName)
+	}
+	return vmGuestOS, nil
 }

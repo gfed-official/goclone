@@ -685,40 +685,26 @@ func GetChildResourcePools(resourcePool string) ([]*object.ResourcePool, error) 
 	return rpList, nil
 }
 
-func customizeVM(vms []*object.VirtualMachine) error {
+func customizeVM(vms []mo.VirtualMachine, templateName string) error {
 	for _, vm := range vms {
-		vmMo := mo.VirtualMachine{}
-		pc := property.DefaultCollector(vSphereClient.client)
-		err := pc.Retrieve(vSphereClient.ctx, []types.ManagedObjectReference{vm.Reference()}, []string{"config"}, &vmMo)
+		vmObj := object.NewVirtualMachine(vSphereClient.client, vm.Reference())
+		vmName, err := vmObj.ObjectName(vSphereClient.ctx)
 		if err != nil {
-			fmt.Println(errors.Wrap(err, "Error retrieving VM config"))
+			fmt.Println(errors.Wrap(err, "Error getting VM name"))
+			return err
 		}
-
-		guestOS := strings.ToLower(vmMo.Config.GuestId)
-
-		tagManager := tags.NewManager(vSphereClient.restClient)
-		tagsOnVM, err := tagManager.GetAttachedTags(vSphereClient.ctx, vm.Reference())
-		if err != nil {
-			fmt.Println(errors.Wrap(err, "Error getting tags on VM"))
+		guestOS := templateMap[templateName].VMGuestOS[vmName]
+		ip := templateMap[templateName].VMAddresses[vmName]
+		if ip == "" || guestOS == "" {
 			continue
 		}
 
-		var ipAddr net.IP
-		var netmask net.IP
-		for _, tag := range tagsOnVM {
-			cat, err := tagManager.GetCategory(vSphereClient.ctx, tag.CategoryID)
-			if err != nil {
-				fmt.Println(errors.Wrap(err, "Error getting category"))
-			}
-			if cat.Name == "Network" {
-				ip, network, err := net.ParseCIDR(tag.Name)
-				if err != nil {
-					fmt.Println(errors.Wrap(err, "Error parsing CIDR"))
-				}
-				netmask = net.IP(network.Mask)
-				ipAddr = ip
-			}
+		ipAddr, network, err := net.ParseCIDR(ip)
+		if err != nil {
+			fmt.Println(errors.Wrap(err, "Error parsing CIDR"))
+			continue
 		}
+		netmask := net.IP(network.Mask)
 
 		var spec *types.CustomizationSpec
 		spec = &types.CustomizationSpec{
@@ -746,7 +732,7 @@ func customizeVM(vms []*object.VirtualMachine) error {
 			nic.Adapter.Ip = &types.CustomizationDhcpIpGenerator{}
 		}
 
-		task, err := vm.Customize(vSphereClient.ctx, *spec)
+		task, err := vmObj.Customize(vSphereClient.ctx, *spec)
 		if err != nil {
 			fmt.Println(errors.Wrap(err, "Error customizing VM"))
 		}
