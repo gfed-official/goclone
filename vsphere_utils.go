@@ -700,6 +700,7 @@ func customizeVM(vms []*object.VirtualMachine) error {
 		tagsOnVM, err := tagManager.GetAttachedTags(vSphereClient.ctx, vm.Reference())
 		if err != nil {
 			fmt.Println(errors.Wrap(err, "Error getting tags on VM"))
+			continue
 		}
 
 		var ipAddr net.IP
