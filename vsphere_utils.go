@@ -721,7 +721,7 @@ func ChangeHostname(template string, vm *mo.VirtualMachine, hostname, domain str
 	}
 	err = RunProgramOnVM(vm, program, auth)
 	if err != nil {
-		fmt.Println(vmName)
+		fmt.Println("Debug: ", vmName, templateMap[template].VMGuestOS[vmName])
 		fmt.Println(errors.Wrap(err, "Error running program on VM"))
 		return err
 	}
