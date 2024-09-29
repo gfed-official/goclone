@@ -704,6 +704,12 @@ func ChangeHostname(template string, vm *mo.VirtualMachine, hostname, domain str
 		return err
 	}
 
+	_, err = vmObj.WaitForIP(vSphereClient.ctx)
+	if err != nil {
+		fmt.Println(errors.Wrap(err, "Error waiting for IP"))
+		return err
+	}
+
 	var program types.GuestProgramSpec
 	if strings.Contains(templateMap[template].VMGuestOS[vmName], "windows") {
 		program = types.GuestProgramSpec{
