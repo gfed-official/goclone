@@ -417,6 +417,18 @@ func TemplateClone(sourceRP, username string, portGroup int) error {
 		return err
 	}
 
+	for _, vm := range vmClonesMo {
+		vmObj := object.NewVirtualMachine(vSphereClient.client, vm.Reference())
+		task, err := vmObj.PowerOff(vSphereClient.ctx)
+		if err != nil {
+			return err
+		}
+		err = task.Wait(vSphereClient.ctx)
+		if err != nil {
+			return err
+		}
+	}
+
 	SnapshotVMs(vmClonesMo, "Base")
 	permission := types.Permission{
 		Principal: strings.Join([]string{mainConfig.Domain, username}, "\\"),
