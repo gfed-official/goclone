@@ -601,19 +601,6 @@ func LoadTemplates() error {
 		templateMap[rpName] = template
 	}
 
-	for key, value := range templateMap {
-		for _, vm := range value.VMs {
-			vmObj := object.NewVirtualMachine(vSphereClient.client, vm.Reference())
-			vmName, err := vmObj.ObjectName(vSphereClient.ctx)
-			if err != nil {
-				log.Println(errors.Wrap(err, "Error getting VM name"))
-				return err
-			}
-			fmt.Println(key, vmName)
-			fmt.Println(value.VMAddresses[vmName])
-		}
-	}
-
 	return nil
 }
 
@@ -745,7 +732,6 @@ func GetVMAddresses(vms []mo.VirtualMachine) (map[string]string, error) {
 		}
 
 		vmAddresses[vmName] = fmt.Sprintf("%s/%s", ipAddr.String(), netmask.String())
-		fmt.Println("NETWORK", vmAddresses[vmName])
 	}
 	return vmAddresses, nil
 }
@@ -759,9 +745,7 @@ func GetVMGuestOS(vms []mo.VirtualMachine) (map[string]string, error) {
 			fmt.Println(errors.Wrap(err, "Error getting VM name"))
 			return nil, err
 		}
-		fmt.Println("2", vmName)
 		vmGuestOS[vmName] = strings.ToLower(vm.Config.GuestFullName)
-		fmt.Println("3", vmGuestOS[vmName])
 	}
 	return vmGuestOS, nil
 }

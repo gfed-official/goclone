@@ -692,10 +692,11 @@ func customizeVM(vms []mo.VirtualMachine, templateName string) error {
 			fmt.Println(errors.Wrap(err, "Error getting VM name"))
 			return err
 		}
+
+		vmName = strings.Split(vmName, "-")[1]
+
 		guestOS := templateMap[templateName].VMGuestOS[vmName]
-		fmt.Printf("VM Name: %s, Guest OS: %s\n", vmName, guestOS)
 		ip := templateMap[templateName].VMAddresses[vmName]
-		fmt.Printf("VM Name: %s, IP: %s\n", vmName, ip)
 		if ip == "" || guestOS == "" {
 			fmt.Println("No IP or guest OS found for VM")
 			continue
