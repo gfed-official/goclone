@@ -31,14 +31,14 @@ type Pod struct {
 }
 
 type Template struct {
-	Name      string
-	SourceRP  *object.ResourcePool
-	VMs       []mo.VirtualMachine
-	Natted    bool
-	NoRouter  bool
-    CompetitionPod bool
-	WanPG     *object.DistributedVirtualPortgroup
-	VMsToHide []*mo.VirtualMachine
+	Name           string
+	SourceRP       *object.ResourcePool
+	VMs            []mo.VirtualMachine
+	Natted         bool
+	NoRouter       bool
+	CompetitionPod bool
+	WanPG          *object.DistributedVirtualPortgroup
+	VMsToHide      []*mo.VirtualMachine
 }
 
 var (
@@ -250,22 +250,22 @@ func vSphereTemplateClone(templateId string, username string) error {
 		return err
 	}
 
-    startPG := vCenterConfig.StartingPortGroup
-    endPG := vCenterConfig.EndingPortGroup
+	startPG := vCenterConfig.StartingPortGroup
+	endPG := vCenterConfig.EndingPortGroup
 
-    if templateMap[templateId].CompetitionPod {
-        startPG = vCenterConfig.CompetitionStartPortGroup
-        endPG = vCenterConfig.CompetitionEndPortGroup
-    }
+	if templateMap[templateId].CompetitionPod {
+		startPG = vCenterConfig.CompetitionStartPortGroup
+		endPG = vCenterConfig.CompetitionEndPortGroup
+	}
 
 	var nextAvailablePortGroup int
 	availablePortGroups.Mu.Lock()
-    for i := startPG; i < endPG; i++ {
-        if _, exists := availablePortGroups.Data[i]; !exists {
-            nextAvailablePortGroup = i
-            availablePortGroups.Data[i] = fmt.Sprintf("%v_%s", nextAvailablePortGroup, vCenterConfig.PortGroupSuffix)
-            break
-        }
+	for i := startPG; i < endPG; i++ {
+		if _, exists := availablePortGroups.Data[i]; !exists {
+			nextAvailablePortGroup = i
+			availablePortGroups.Data[i] = fmt.Sprintf("%v_%s", nextAvailablePortGroup, vCenterConfig.PortGroupSuffix)
+			break
+		}
 	}
 	availablePortGroups.Mu.Unlock()
 
@@ -316,9 +316,11 @@ func TemplateClone(sourceRP, username string, portGroup int) error {
 	}
 
 	var vmClonesMo []mo.VirtualMachine
+	var vmClonesObj []*object.VirtualMachine
 	var router *mo.VirtualMachine
 	for _, vm := range vmClones {
 		vmObj := object.NewVirtualMachine(vSphereClient.client, vm.Reference())
+		vmClonesObj = append(vmClonesObj, vmObj)
 		var vm mo.VirtualMachine
 
 		err = vmObj.Properties(vSphereClient.ctx, vmObj.Reference(), []string{"name"}, &vm)
@@ -332,12 +334,12 @@ func TemplateClone(sourceRP, username string, portGroup int) error {
 		}
 	}
 
-    var routerPG *object.DistributedVirtualPortgroup
-    if templateMap[sourceRP].CompetitionPod {
-        routerPG = competitionPG
-    } else {
-        routerPG = templateMap[sourceRP].WanPG
-    }
+	var routerPG *object.DistributedVirtualPortgroup
+	if templateMap[sourceRP].CompetitionPod {
+		routerPG = competitionPG
+	} else {
+		routerPG = templateMap[sourceRP].WanPG
+	}
 
 	if !templateMap[sourceRP].NoRouter {
 		err = ConfigRouter(pg.Reference(), routerPG.Reference(), router, pgStr)
@@ -352,14 +354,14 @@ func TemplateClone(sourceRP, username string, portGroup int) error {
 				return err
 			}
 
-            var networkID string
-            if templateMap[sourceRP].CompetitionPod {
-                octets := strings.Split(vCenterConfig.CompetitionNetworkID, ".")
-                networkID = fmt.Sprintf("%s.%s", octets[0], octets[1])
-            } else {
-                octets := strings.Split(vCenterConfig.DefaultNetworkID, ".")
-                networkID = fmt.Sprintf("%s.%s", octets[0], octets[1])
-            }
+			var networkID string
+			if templateMap[sourceRP].CompetitionPod {
+				octets := strings.Split(vCenterConfig.CompetitionNetworkID, ".")
+				networkID = fmt.Sprintf("%s.%s", octets[0], octets[1])
+			} else {
+				octets := strings.Split(vCenterConfig.DefaultNetworkID, ".")
+				networkID = fmt.Sprintf("%s.%s", octets[0], octets[1])
+			}
 
 			program := types.GuestProgramSpec{
 				ProgramPath: vCenterConfig.RouterProgram,
@@ -377,8 +379,10 @@ func TemplateClone(sourceRP, username string, portGroup int) error {
 			}
 		}
 	}
-	SnapshotVMs(vmClonesMo, "Base")
 
+	customizeVM(vmClonesObj)
+
+	SnapshotVMs(vmClonesMo, "Base")
 	permission := types.Permission{
 		Principal: strings.Join([]string{mainConfig.Domain, username}, "\\"),
 		RoleId:    cloneRole.RoleId,
@@ -445,8 +449,8 @@ func CustomClone(podName string, vmsToClone []string, natted bool, username stri
 			return err
 		}
 
-        octets := strings.Split(vCenterConfig.DefaultNetworkID, ".")
-        networkID := fmt.Sprintf("%s.%s", octets[0], octets[1])
+		octets := strings.Split(vCenterConfig.DefaultNetworkID, ".")
+		networkID := fmt.Sprintf("%s.%s", octets[0], octets[1])
 
 		program := types.GuestProgramSpec{
 			ProgramPath: vCenterConfig.RouterProgram,
@@ -525,9 +529,8 @@ func DestroyResources(podId string) error {
 	if err != nil {
 		log.Println(errors.Wrap(err, "Error finding folder"))
 	} else {
-        DestroyFolder(folder)
-    }
-
+		DestroyFolder(folder)
+	}
 
 	pg, err := GetPortGroup(strings.Join([]string{strings.Split(podId, "_")[0], vCenterConfig.PortGroupSuffix}, "_"))
 	err = DestroyPortGroup(pg.Reference())
@@ -556,28 +559,28 @@ func GetNatOctet(pg string) (int, error) {
 		return -1, errors.New("Port group is not a number")
 	}
 
-    var start int
-    if pgInt < vCenterConfig.CompetitionStartPortGroup {
-        if pgInt < vCenterConfig.StartingPortGroup || pgInt > vCenterConfig.EndingPortGroup || pgInt > vCenterConfig.StartingPortGroup+255 {
-            return -1, errors.New("Port group out of range")
-        }
-        start = vCenterConfig.StartingPortGroup
-    } else {
-        if pgInt < vCenterConfig.CompetitionStartPortGroup || pgInt > vCenterConfig.CompetitionEndPortGroup || pgInt > vCenterConfig.CompetitionStartPortGroup+255 {
-            return -1, errors.New("Port group out of range")
-        }
-        start = vCenterConfig.CompetitionStartPortGroup
-    }
+	var start int
+	if pgInt < vCenterConfig.CompetitionStartPortGroup {
+		if pgInt < vCenterConfig.StartingPortGroup || pgInt > vCenterConfig.EndingPortGroup || pgInt > vCenterConfig.StartingPortGroup+255 {
+			return -1, errors.New("Port group out of range")
+		}
+		start = vCenterConfig.StartingPortGroup
+	} else {
+		if pgInt < vCenterConfig.CompetitionStartPortGroup || pgInt > vCenterConfig.CompetitionEndPortGroup || pgInt > vCenterConfig.CompetitionStartPortGroup+255 {
+			return -1, errors.New("Port group out of range")
+		}
+		start = vCenterConfig.CompetitionStartPortGroup
+	}
 
 	return pgInt - start + 1, nil
 }
 
 func LoadTemplates() error {
-    rpList, err := GetChildResourcePools(vCenterConfig.PresetTemplateResourcePool)
-    if err != nil {
-        log.Println(errors.Wrap(err, "Error getting child resource pools"))
-        return err
-    }
+	rpList, err := GetChildResourcePools(vCenterConfig.PresetTemplateResourcePool)
+	if err != nil {
+		log.Println(errors.Wrap(err, "Error getting child resource pools"))
+		return err
+	}
 
 	for _, rp := range rpList {
 		rpName, err := rp.ObjectName(vSphereClient.ctx)
@@ -605,7 +608,7 @@ func LoadTemplate(rp *object.ResourcePool, name string) (Template, error) {
 
 	natted := false
 	noRouter := false
-    competitionPod := false
+	competitionPod := false
 	pg := wanPG
 	for _, tag := range tagsOnTmpl {
 		if tag.Name == "natted" {
@@ -622,9 +625,9 @@ func LoadTemplate(rp *object.ResourcePool, name string) (Template, error) {
 			}
 			pg = object.NewDistributedVirtualPortgroup(vSphereClient.client, pg.Reference())
 		}
-        if tag.Name == "CompetitionPod" {
-            competitionPod = true
-        }
+		if tag.Name == "CompetitionPod" {
+			competitionPod = true
+		}
 	}
 
 	vms, err := GetVMsInResourcePool(rp.Reference())
@@ -661,14 +664,14 @@ func LoadTemplate(rp *object.ResourcePool, name string) (Template, error) {
 	}
 
 	template := Template{
-		Name:      name,
-		SourceRP:  rp,
-		VMs:       vms,
-		Natted:    natted,
-        CompetitionPod: competitionPod,
-		NoRouter:  noRouter,
-		WanPG:     pg,
-		VMsToHide: vmsToHide,
+		Name:           name,
+		SourceRP:       rp,
+		VMs:            vms,
+		Natted:         natted,
+		CompetitionPod: competitionPod,
+		NoRouter:       noRouter,
+		WanPG:          pg,
+		VMsToHide:      vmsToHide,
 	}
 
 	return template, nil

@@ -1,7 +1,9 @@
 package main
 
 import (
+	"fmt"
 	"log"
+	"net"
 	"strings"
 	"sync"
 	"time"
@@ -130,10 +132,10 @@ func CreateResourcePool(name string, compPod bool) (types.ManagedObjectReference
 		return rp.Reference(), nil
 	}
 
-    rpDest := targetResourcePool
-    if compPod {
-        rpDest = competitionResourcePool
-    }
+	rpDest := targetResourcePool
+	if compPod {
+		rpDest = competitionResourcePool
+	}
 
 	child, err := rpDest.Create(vSphereClient.ctx, name, rpSpec)
 	if err != nil {
@@ -674,11 +676,87 @@ func GetChildResourcePools(resourcePool string) ([]*object.ResourcePool, error) 
 		return nil, err
 	}
 
-    var rpList []*object.ResourcePool
+	var rpList []*object.ResourcePool
 	for _, rp := range rpData.ResourcePool {
 		rpObj := object.NewResourcePool(vSphereClient.client, rp.Reference())
-        rpList = append(rpList, rpObj)
+		rpList = append(rpList, rpObj)
 	}
 
-    return rpList, nil
+	return rpList, nil
+}
+
+func customizeVM(vms []*object.VirtualMachine) error {
+	for _, vm := range vms {
+		vmMo := mo.VirtualMachine{}
+		pc := property.DefaultCollector(vSphereClient.client)
+		err := pc.Retrieve(vSphereClient.ctx, []types.ManagedObjectReference{vm.Reference()}, []string{"config"}, &vmMo)
+		if err != nil {
+			fmt.Println(errors.Wrap(err, "Error retrieving VM config"))
+		}
+
+		guestOS := strings.ToLower(vmMo.Config.GuestId)
+
+		tagManager := tags.NewManager(vSphereClient.restClient)
+		tagsOnVM, err := tagManager.GetAttachedTags(vSphereClient.ctx, vm.Reference())
+		if err != nil {
+			fmt.Println(errors.Wrap(err, "Error getting tags on VM"))
+		}
+
+		var ipAddr net.IP
+		var netmask net.IP
+		for _, tag := range tagsOnVM {
+			cat, err := tagManager.GetCategory(vSphereClient.ctx, tag.CategoryID)
+			if err != nil {
+				fmt.Println(errors.Wrap(err, "Error getting category"))
+			}
+			if cat.Name == "Network" {
+				ip, network, err := net.ParseCIDR(tag.Name)
+				if err != nil {
+					fmt.Println(errors.Wrap(err, "Error parsing CIDR"))
+				}
+				netmask = net.IP(network.Mask)
+				ipAddr = ip
+			}
+		}
+
+		var spec *types.CustomizationSpec
+		spec = &types.CustomizationSpec{
+			NicSettingMap: make([]types.CustomizationAdapterMapping, 1),
+		}
+		if strings.Contains(guestOS, "windows") {
+			spec.Identity = &types.CustomizationSysprep{
+				UserData: types.CustomizationUserData{
+					FullName:     "SDC",
+					OrgName:      "SDC",
+					ComputerName: new(types.CustomizationVirtualMachineName),
+				},
+			}
+		} else {
+			spec.Identity = &types.CustomizationLinuxPrep{
+				HostName: new(types.CustomizationVirtualMachineName),
+			}
+		}
+
+		nic := &spec.NicSettingMap[0]
+		if ipAddr != nil {
+			nic.Adapter.Ip = &types.CustomizationFixedIp{IpAddress: ipAddr.String()}
+			nic.Adapter.SubnetMask = netmask.String()
+		} else {
+			nic.Adapter.Ip = &types.CustomizationDhcpIpGenerator{}
+		}
+
+		task, err := vm.Customize(vSphereClient.ctx, *spec)
+		if err != nil {
+			fmt.Println(errors.Wrap(err, "Error customizing VM"))
+		}
+
+		err = task.Wait(vSphereClient.ctx)
+		if err != nil {
+			fmt.Println(errors.Wrap(err, "Error waiting for task"))
+		}
+
+		fmt.Println("VM customization complete")
+	}
+	return nil
+
 }
