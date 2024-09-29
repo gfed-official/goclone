@@ -692,9 +692,9 @@ func ChangeHostname(template string, vm *mo.VirtualMachine, hostname, domain str
 		return err
 	}
 
-	task, err := vmObj.Rename(vSphereClient.ctx, hostname)
+	task, err := vmObj.PowerOn(vSphereClient.ctx)
 	if err != nil {
-		fmt.Println(errors.Wrap(err, "Error renaming VM"))
+		fmt.Println(errors.Wrap(err, "Error powering on VM"))
 		return err
 	}
 

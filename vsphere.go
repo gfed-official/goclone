@@ -752,7 +752,6 @@ func GetVMGuestOS(vms []mo.VirtualMachine) (map[string]string, error) {
 			return nil, err
 		}
 		vmGuestOS[vmName] = strings.ToLower(vm.Config.GuestFullName)
-		fmt.Println("3", vmGuestOS[vmName])
 	}
 	return vmGuestOS, nil
 }
