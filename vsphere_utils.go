@@ -130,10 +130,10 @@ func CreateResourcePool(name string, compPod bool) (types.ManagedObjectReference
 		return rp.Reference(), nil
 	}
 
-    rpDest := targetResourcePool
-    if compPod {
-        rpDest = competitionResourcePool
-    }
+	rpDest := targetResourcePool
+	if compPod {
+		rpDest = competitionResourcePool
+	}
 
 	child, err := rpDest.Create(vSphereClient.ctx, name, rpSpec)
 	if err != nil {
@@ -674,11 +674,27 @@ func GetChildResourcePools(resourcePool string) ([]*object.ResourcePool, error) 
 		return nil, err
 	}
 
-    var rpList []*object.ResourcePool
+	var rpList []*object.ResourcePool
 	for _, rp := range rpData.ResourcePool {
 		rpObj := object.NewResourcePool(vSphereClient.client, rp.Reference())
-        rpList = append(rpList, rpObj)
+		rpList = append(rpList, rpObj)
 	}
 
-    return rpList, nil
+	return rpList, nil
+}
+
+func RevertVM(vm *object.VirtualMachine, name string) error {
+	vmObj := object.NewVirtualMachine(vSphereClient.client, vm.Reference())
+	task, err := vmObj.RevertToSnapshot(vSphereClient.ctx, name, false)
+	if err != nil {
+		log.Println(errors.Wrap(err, "Error reverting to snapshot"))
+		return err
+	}
+
+	err = task.Wait(vSphereClient.ctx)
+	if err != nil {
+		log.Println(errors.Wrap(err, "Error waiting for task"))
+		return err
+	}
+	return nil
 }

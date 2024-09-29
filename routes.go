@@ -35,31 +35,33 @@ func addPrivateRoutes(g *gin.RouterGroup) {
 func addAdminRoutes(g *gin.RouterGroup) {
 	g.GET("/view/pods", adminGetAllPods)
 	g.POST("/pod/clone/bulk", adminBulkClonePods)
-    g.POST("/pod/clone/competition", cloneCompetitionPods)
+	g.POST("/pod/clone/competition", cloneCompetitionPods)
 	g.DELETE("/pod/delete/:podId", adminDeletePod)
-    g.DELETE("/pod/delete/bulk", adminBulkDeletePods)
+	g.DELETE("/pod/delete/bulk", adminBulkDeletePods)
 	g.POST("/templates/refresh", refreshTemplates)
-    g.POST("/user/create/bulk", bulkCreateUsers)
+	g.POST("/user/create/bulk", bulkCreateUsers)
+	g.POST("/pod/revert/bulk", adminBulkRevertPod)
+	g.POST("/pod/power/bulk", adminBulkPowerPod)
 }
 
 func cloneCompetitionPods(c *gin.Context) {
-    var form struct {
-        Template string `json:"template"`
-        Count int `json:"count"`
-    }
+	var form struct {
+		Template string `json:"template"`
+		Count    int    `json:"count"`
+	}
 
-    err := c.ShouldBindJSON(&form)
-    if err != nil {
-        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-        return
-    }
+	err := c.ShouldBindJSON(&form)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
 
-    userMap, err := competitionClone(form.Template, form.Count)
-    if err != nil {
-        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-        return
-    }
-    c.JSON(http.StatusOK, gin.H{"message": "Competition pods deployed successfully!", "users": userMap})
+	userMap, err := competitionClone(form.Template, form.Count)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Competition pods deployed successfully!", "users": userMap})
 }
 
 func getPresetTemplates(c *gin.Context) {
@@ -131,7 +133,7 @@ func invokePodCloneCustom(c *gin.Context) {
 		return
 	}
 
-    fmt.Printf("User %s is cloning custom pod %s\n", username, form.Name)
+	fmt.Printf("User %s is cloning custom pod %s\n", username, form.Name)
 
 	err = vSphereCustomClone(form.Name, form.Vmstoclone, form.Nat, username)
 	if err != nil {
@@ -162,31 +164,31 @@ func adminBulkClonePods(c *gin.Context) {
 }
 
 func adminBulkDeletePods(c *gin.Context) {
-    var form struct {
-        Filters []string `json:"filters"`
-    }
+	var form struct {
+		Filters []string `json:"filters"`
+	}
 
-    err := c.ShouldBindJSON(&form)
-    if err != nil {
-        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-        return
-    }
+	err := c.ShouldBindJSON(&form)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
 
-    failed, err := bulkDeletePods(form.Filters)
-    if err != nil {
-        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-        return
-    }
+	failed, err := bulkDeletePods(form.Filters)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
 
-    if len(failed) > 0 {
-        type failedPods struct {
-            Failed []string `json:"failed"`
-        }
-        failed := failedPods{Failed: failed}
-        c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to delete pods", "failed": failed})
-        return
-    }
-    c.JSON(http.StatusOK, gin.H{"message": "Pods deleted successfully!"})
+	if len(failed) > 0 {
+		type failedPods struct {
+			Failed []string `json:"failed"`
+		}
+		failed := failedPods{Failed: failed}
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to delete pods", "failed": failed})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Pods deleted successfully!"})
 }
 
 func invokePodCloneFromTemplate(c *gin.Context) {
@@ -200,7 +202,7 @@ func invokePodCloneFromTemplate(c *gin.Context) {
 	template := jsonData["template"].(string)
 	username := getUser(c)
 
-    fmt.Printf("User %s is cloning template %s\n", username, template)
+	fmt.Printf("User %s is cloning template %s\n", username, template)
 	err = vSphereTemplateClone(template, username)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -228,4 +230,60 @@ func health(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"status": "ok"})
+}
+
+func adminBulkRevertPod(c *gin.Context) {
+	var form struct {
+		Filters  []string `json:"filters"`
+		Snapshot string   `json:"snapshot"`
+	}
+
+	err := c.ShouldBindJSON(&form)
+
+	failed, err := bulkRevertPods(form.Filters, form.Snapshot)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if len(failed) > 0 {
+		type failedPods struct {
+			Failed []string `json:"failed"`
+		}
+		failed := failedPods{Failed: failed}
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to revert pods", "failed": failed})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Pods reverted successfully!"})
+}
+
+func adminBulkPowerPod(c *gin.Context) {
+	var form struct {
+		Filters []string `json:"filters"`
+		On      bool     `json:"On"`
+	}
+	var state string
+	err := c.ShouldBindJSON(&form)
+
+	if form.On {
+		state = "on"
+	} else {
+		state = "off"
+	}
+
+	failed, err := bulkPowerPods(form.Filters, form.On)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if len(failed) > 0 {
+		type failedPods struct {
+			Failed []string `json:"failed"`
+		}
+		failed := failedPods{Failed: failed}
+		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Failed to power pods %s", state), "failed": failed})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": fmt.Sprintf("Pods powered %s successfully!", state)})
 }
