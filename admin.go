@@ -331,13 +331,19 @@ func bulkRevertPods(filter []string, snapshot string) ([]string, error) {
 	wg := errgroup.Group{}
 	for _, vm := range vms {
 		wg.Go(func() error {
-			err := RevertVM(vm, snapshot)
+
+			vmName, err := vm.ObjectName(vSphereClient.ctx)
 			if err != nil {
-				vmName, err := vm.ObjectName(vSphereClient.ctx)
-				if err != nil {
-					return errors.Wrap(err, "Error getting VM name")
-				}
-				fmt.Printf("Error reverting to snapshot %s for pod %s: %v\n", snapshot, vmName, err)
+				return errors.Wrap(err, "Error getting VM name")
+			}
+			fmt.Printf("Error reverting to snapshot %s for pod %s: %v\n", snapshot, vmName, err)
+
+			// Skip Podrouters
+			if strings.Contains(vmName, "Natted-PodRouter") {
+				return nil
+			}
+			err = RevertVM(vm, snapshot)
+			if err != nil {
 				failed = append(failed, vmName)
 				return err
 			}
