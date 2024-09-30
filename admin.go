@@ -438,6 +438,7 @@ func bulkPowerPods(filter []string, state bool) ([]string, error) {
 					log.Println(errors.Wrap(err, "Error getting children"))
 				} else {
 					for _, vm := range vms {
+						log.Println(vm.(*object.VirtualMachine).Name())
 						wg.Go(func() error {
 							var task *object.Task
 							if state {
