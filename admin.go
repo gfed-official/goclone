@@ -438,29 +438,27 @@ func bulkPowerPods(filter []string, state bool) ([]string, error) {
 					log.Println(errors.Wrap(err, "Error getting children"))
 				} else {
 					for _, vm := range vms {
-						if strings.Contains(podName, f) {
-							wg.Go(func() error {
-								var task *object.Task
-								if state {
-									task, err = vm.(*object.VirtualMachine).PowerOn(vSphereClient.ctx)
-								} else {
-									task, err = vm.(*object.VirtualMachine).PowerOff(vSphereClient.ctx)
-								}
-								if err != nil {
-									fmt.Printf("Error modifying power state for pod %s: %v \n", podName, err)
-									failed = append(failed, podName)
-									return err
-								}
+						wg.Go(func() error {
+							var task *object.Task
+							if state {
+								task, err = vm.(*object.VirtualMachine).PowerOn(vSphereClient.ctx)
+							} else {
+								task, err = vm.(*object.VirtualMachine).PowerOff(vSphereClient.ctx)
+							}
+							if err != nil {
+								fmt.Printf("Error modifying power state for pod %s: %v \n", podName, err)
+								failed = append(failed, podName)
+								return err
+							}
 
-								err = task.Wait(vSphereClient.ctx)
-								if err != nil {
-									log.Println(errors.Wrap(err, "Error waiting for task"))
-									return err
-								}
+							err = task.Wait(vSphereClient.ctx)
+							if err != nil {
+								log.Println(errors.Wrap(err, "Error waiting for task"))
+								return err
+							}
 
-								return nil
-							})
-						}
+							return nil
+						})
 					}
 				}
 			}
