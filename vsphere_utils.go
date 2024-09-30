@@ -698,3 +698,65 @@ func RevertVM(vm *object.VirtualMachine, name string) error {
 	}
 	return nil
 }
+
+func GetPodsMatchingFilter(filter []string) ([]*object.ResourcePool, error) {
+	kaminoPods, err := GetChildResourcePools(vCenterConfig.TargetResourcePool)
+	if err != nil {
+		return []*object.ResourcePool{}, errors.Wrap(err, "Error getting Kamino pods")
+	}
+
+	competitionPods, err := GetChildResourcePools(vCenterConfig.CompetitionResourcePool)
+	if err != nil {
+		return []*object.ResourcePool{}, errors.Wrap(err, "Error getting Competition pods")
+	}
+
+	pods := append(kaminoPods, competitionPods...)
+
+	var filteredPods []*object.ResourcePool
+	for _, pod := range pods {
+		podName, err := pod.ObjectName(vSphereClient.ctx)
+		if err != nil {
+			return []*object.ResourcePool{}, errors.Wrap(err, "Error getting pod name")
+		}
+
+		// This is mostly copy pasted from bulkDelete, can probalby make a helper or something...
+		for _, f := range filter {
+			if f == "" {
+				continue
+			}
+			if !strings.Contains(podName, f) {
+				continue
+			}
+			filteredPods = append(filteredPods, pod)
+		}
+	}
+	return filteredPods, nil
+}
+
+func GetVMsOfPods(pods []*object.ResourcePool) ([]*object.VirtualMachine, error) {
+
+	var vms []*object.VirtualMachine
+
+	for _, pod := range pods {
+		podName, err := pod.ObjectName(vSphereClient.ctx)
+		if err != nil {
+			return []*object.VirtualMachine{}, errors.Wrap(err, "Error getting pod name")
+		}
+
+		folder, err := finder.Folder(vSphereClient.ctx, podName)
+		if err != nil {
+			log.Println(errors.Wrap(err, "Error finding folder"))
+			return []*object.VirtualMachine{}, err
+		}
+
+		_vms, err := folder.Children(vSphereClient.ctx)
+		if err != nil {
+			log.Println(errors.Wrap(err, "Error getting children"))
+			return []*object.VirtualMachine{}, err
+		}
+		for _, _vm := range _vms {
+			vms = append(vms, _vm.(*object.VirtualMachine))
+		}
+	}
+	return vms, nil
+}

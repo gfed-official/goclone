@@ -272,10 +272,6 @@ func adminBulkPowerPod(c *gin.Context) {
 	}
 
 	failed, err := bulkPowerPods(form.Filters, form.On)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
 
 	if len(failed) > 0 {
 		type failedPods struct {
@@ -285,5 +281,10 @@ func adminBulkPowerPod(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Failed to power pods %s", state), "failed": failed})
 		return
 	}
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
 	c.JSON(http.StatusOK, gin.H{"message": fmt.Sprintf("Pods powered %s successfully!", state)})
 }

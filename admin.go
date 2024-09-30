@@ -404,70 +404,43 @@ func bulkRevertPods(filter []string, snapshot string) ([]string, error) {
 // state - True for on, False for off.
 // Returns: string array of pods which failed to be modified and an error if one occured
 func bulkPowerPods(filter []string, state bool) ([]string, error) {
-	kaminoPods, err := GetChildResourcePools(vCenterConfig.TargetResourcePool)
+
+	pods, err := GetPodsMatchingFilter(filter)
 	if err != nil {
-		return []string{}, errors.Wrap(err, "Error getting Kamino pods")
+
 	}
 
-	competitionPods, err := GetChildResourcePools(vCenterConfig.CompetitionResourcePool)
+	vms, err := GetVMsOfPods(pods)
 	if err != nil {
-		return []string{}, errors.Wrap(err, "Error getting Competition pods")
+
 	}
 
-	pods := append(kaminoPods, competitionPods...)
 	failed := []string{}
 	wg := errgroup.Group{}
-	for _, pod := range pods {
-		podName, err := pod.ObjectName(vSphereClient.ctx)
-		if err != nil {
-			return []string{}, errors.Wrap(err, "Error getting pod name")
-		}
-
-		// This is mostly copy pasted from bulkDelete, can probalby make a helper or something...
-		for _, f := range filter {
-			if f == "" {
-				continue
+	for _, vm := range vms {
+		wg.Go(func() error {
+			var task *object.Task
+			if state {
+				task, err = vm.PowerOn(vSphereClient.ctx)
+			} else {
+				task, err = vm.PowerOff(vSphereClient.ctx)
 			}
-			if !strings.Contains(podName, f) {
-				continue
-			}
-
-			folder, err := finder.Folder(vSphereClient.ctx, podName)
 			if err != nil {
-				log.Println(errors.Wrap(err, "Error finding folder"))
-				return failed, err
+				vmName, err := vm.ObjectName(vSphereClient.ctx)
+				if err != nil {
+					return errors.Wrap(err, "Error getting pod name")
+				}
+				failed = append(failed, vmName)
+				return err
 			}
 
-			vms, err := folder.Children(vSphereClient.ctx)
+			err = task.Wait(vSphereClient.ctx)
 			if err != nil {
-				log.Println(errors.Wrap(err, "Error getting children"))
-				return failed, err
+				log.Println(errors.Wrap(err, "Error waiting for task"))
+				return err
 			}
-
-			for _, vm := range vms {
-				fmt.Println(vm.(*object.VirtualMachine).Name())
-				wg.Go(func() error {
-					var task *object.Task
-					if state {
-						task, err = vm.(*object.VirtualMachine).PowerOn(vSphereClient.ctx)
-					} else {
-						task, err = vm.(*object.VirtualMachine).PowerOff(vSphereClient.ctx)
-					}
-					if err != nil {
-						fmt.Printf("Error modifying power state for pod %s: %v \n", podName, err)
-						failed = append(failed, podName)
-						return err
-					}
-
-					err = task.Wait(vSphereClient.ctx)
-					if err != nil {
-						log.Println(errors.Wrap(err, "Error waiting for task"))
-						return err
-					}
-					return nil
-				})
-			}
-		}
+			return nil
+		})
 	}
 
 	if err := wg.Wait(); err != nil {
