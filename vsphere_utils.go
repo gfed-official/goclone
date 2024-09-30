@@ -699,7 +699,7 @@ func RevertVM(vm *object.VirtualMachine, name string) error {
 	return nil
 }
 
-func GetPodsMatchingFilter(filter []string) ([]*object.ResourcePool, error) {
+func GetAllPods() ([]*object.ResourcePool, error) {
 	kaminoPods, err := GetChildResourcePools(vCenterConfig.TargetResourcePool)
 	if err != nil {
 		return []*object.ResourcePool{}, errors.Wrap(err, "Error getting Kamino pods")
@@ -711,6 +711,13 @@ func GetPodsMatchingFilter(filter []string) ([]*object.ResourcePool, error) {
 	}
 
 	pods := append(kaminoPods, competitionPods...)
+	return pods, nil
+}
+func GetPodsMatchingFilter(filter []string) ([]*object.ResourcePool, error) {
+	pods, err := GetAllPods()
+	if err != nil {
+		return []*object.ResourcePool{}, err
+	}
 
 	var filteredPods []*object.ResourcePool
 	for _, pod := range pods {

@@ -341,59 +341,45 @@ func createUser(ldapClient Client, username string) (string, error) {
 // snapshot - name of the snapshot to revert to (probably Base)
 // Returns: string array of pods which failed to revert and an error if one occured
 func bulkRevertPods(filter []string, snapshot string) ([]string, error) {
-	kaminoPods, err := GetChildResourcePools(vCenterConfig.TargetResourcePool)
+
+	pods, err := GetPodsMatchingFilter(filter)
 	if err != nil {
-		return []string{}, errors.Wrap(err, "Error getting Kamino pods")
+		// TODO
 	}
 
-	competitionPods, err := GetChildResourcePools(vCenterConfig.CompetitionResourcePool)
+	vms, err := GetVMsOfPods(pods)
 	if err != nil {
-		return []string{}, errors.Wrap(err, "Error getting Competition pods")
+		// TODO
 	}
 
-	pods := append(kaminoPods, competitionPods...)
 	failed := []string{}
 	wg := errgroup.Group{}
-	for _, pod := range pods {
-		podName, err := pod.ObjectName(vSphereClient.ctx)
-		if err != nil {
-			return []string{}, errors.Wrap(err, "Error getting pod name")
-		}
+	for _, vm := range vms {
+		wg.Go(func() error {
+			var task *object.Task
 
-		// This is mostly copy pasted from bulkDelete, can probalby make a helper or something...
-		for _, f := range filter {
-			if f == "" {
-				continue
-			}
-
-			folder, err := finder.Folder(vSphereClient.ctx, f)
+			err := RevertVM(vm, snapshot)
 			if err != nil {
-				log.Println(errors.Wrap(err, "Error finding folder"))
-			} else {
-				vms, err := folder.Children(vSphereClient.ctx)
+				vmName, err := vm.ObjectName(vSphereClient.ctx)
 				if err != nil {
-					log.Println(errors.Wrap(err, "Error getting children"))
-				} else {
-					for _, vm := range vms {
-						if strings.Contains(podName, f) {
-							wg.Go(func() error {
-								err := RevertVM(vm.(*object.VirtualMachine), snapshot)
-								if err != nil {
-									fmt.Printf("Error reverting to snapshot %s for pod %s: %v\n", snapshot, podName, err)
-									failed = append(failed, podName)
-									return err
-								}
-								return nil
-							})
-						}
-					}
+					return errors.Wrap(err, "Error getting VM name")
 				}
+				fmt.Printf("Error reverting to snapshot %s for pod %s: %v\n", snapshot, vmName, err)
+				failed = append(failed, vmName)
+				return err
 			}
-		}
+
+			err = task.Wait(vSphereClient.ctx)
+			if err != nil {
+				log.Println(errors.Wrap(err, "Error waiting for task"))
+				return err
+			}
+			return nil
+		})
 	}
 
 	if err := wg.Wait(); err != nil {
-		return failed, errors.Wrap(err, "Error reverting pods")
+		return failed, errors.Wrap(err, "Error modifying power state for pods")
 	}
 
 	return failed, nil
@@ -407,12 +393,12 @@ func bulkPowerPods(filter []string, state bool) ([]string, error) {
 
 	pods, err := GetPodsMatchingFilter(filter)
 	if err != nil {
-
+		// TODO
 	}
 
 	vms, err := GetVMsOfPods(pods)
 	if err != nil {
-
+		// TODO
 	}
 
 	failed := []string{}
@@ -428,7 +414,7 @@ func bulkPowerPods(filter []string, state bool) ([]string, error) {
 			if err != nil {
 				vmName, err := vm.ObjectName(vSphereClient.ctx)
 				if err != nil {
-					return errors.Wrap(err, "Error getting pod name")
+					return errors.Wrap(err, "Error getting VM name")
 				}
 				failed = append(failed, vmName)
 				return err
