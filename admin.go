@@ -428,40 +428,44 @@ func bulkPowerPods(filter []string, state bool) ([]string, error) {
 			if f == "" {
 				continue
 			}
+			if !strings.Contains(podName, f) {
+				continue
+			}
 
-			folder, err := finder.Folder(vSphereClient.ctx, f)
+			folder, err := finder.Folder(vSphereClient.ctx, podName)
 			if err != nil {
 				log.Println(errors.Wrap(err, "Error finding folder"))
-			} else {
-				vms, err := folder.Children(vSphereClient.ctx)
-				if err != nil {
-					log.Println(errors.Wrap(err, "Error getting children"))
-				} else {
-					for _, vm := range vms {
-						log.Println(vm.(*object.VirtualMachine).Name())
-						wg.Go(func() error {
-							var task *object.Task
-							if state {
-								task, err = vm.(*object.VirtualMachine).PowerOn(vSphereClient.ctx)
-							} else {
-								task, err = vm.(*object.VirtualMachine).PowerOff(vSphereClient.ctx)
-							}
-							if err != nil {
-								fmt.Printf("Error modifying power state for pod %s: %v \n", podName, err)
-								failed = append(failed, podName)
-								return err
-							}
+				return failed, err
+			}
 
-							err = task.Wait(vSphereClient.ctx)
-							if err != nil {
-								log.Println(errors.Wrap(err, "Error waiting for task"))
-								return err
-							}
+			vms, err := folder.Children(vSphereClient.ctx)
+			if err != nil {
+				log.Println(errors.Wrap(err, "Error getting children"))
+				return failed, err
+			}
 
-							return nil
-						})
+			for _, vm := range vms {
+				fmt.Println(vm.(*object.VirtualMachine).Name())
+				wg.Go(func() error {
+					var task *object.Task
+					if state {
+						task, err = vm.(*object.VirtualMachine).PowerOn(vSphereClient.ctx)
+					} else {
+						task, err = vm.(*object.VirtualMachine).PowerOff(vSphereClient.ctx)
 					}
-				}
+					if err != nil {
+						fmt.Printf("Error modifying power state for pod %s: %v \n", podName, err)
+						failed = append(failed, podName)
+						return err
+					}
+
+					err = task.Wait(vSphereClient.ctx)
+					if err != nil {
+						log.Println(errors.Wrap(err, "Error waiting for task"))
+						return err
+					}
+					return nil
+				})
 			}
 		}
 	}
