@@ -15,39 +15,21 @@ import (
 )
 
 func adminGetAllPods(c *gin.Context) {
-	kaminoPods, err := GetChildResourcePools(vCenterConfig.TargetResourcePool)
+
+	pods, err := GetAllPods()
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	competitionPods, err := GetChildResourcePools(vCenterConfig.CompetitionResourcePool)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	var pods []Pod
-	for _, pod := range kaminoPods {
+	var _pods []Pod
+	for _, pod := range pods {
 		podName, err := pod.ObjectName(vSphereClient.ctx)
 		if err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
-		pods = append(pods, Pod{
-			Name:          podName,
-			ResourceGroup: pod.Reference().Value,
-			ServerGUID:    pod.Reference().ServerGUID,
-		})
-	}
-
-	for _, pod := range competitionPods {
-		podName, err := pod.ObjectName(vSphereClient.ctx)
-		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-			return
-		}
-		pods = append(pods, Pod{
+		_pods = append(_pods, Pod{
 			Name:          podName,
 			ResourceGroup: pod.Reference().Value,
 			ServerGUID:    pod.Reference().ServerGUID,
@@ -107,17 +89,10 @@ func bulkClonePods(template string, users []string) error {
 }
 
 func bulkDeletePods(filter []string) ([]string, error) {
-	kaminoPods, err := GetChildResourcePools(vCenterConfig.TargetResourcePool)
+	pods, err := GetAllPods()
 	if err != nil {
-		return []string{}, errors.Wrap(err, "Error getting Kamino pods")
+		return []string{}, errors.Wrap(err, "Error getting pods")
 	}
-
-	competitionPods, err := GetChildResourcePools(vCenterConfig.CompetitionResourcePool)
-	if err != nil {
-		return []string{}, errors.Wrap(err, "Error getting Competition pods")
-	}
-
-	pods := append(kaminoPods, competitionPods...)
 	failed := []string{}
 	wg := errgroup.Group{}
 	for _, pod := range pods {
@@ -356,8 +331,6 @@ func bulkRevertPods(filter []string, snapshot string) ([]string, error) {
 	wg := errgroup.Group{}
 	for _, vm := range vms {
 		wg.Go(func() error {
-			var task *object.Task
-
 			err := RevertVM(vm, snapshot)
 			if err != nil {
 				vmName, err := vm.ObjectName(vSphereClient.ctx)
@@ -366,12 +339,6 @@ func bulkRevertPods(filter []string, snapshot string) ([]string, error) {
 				}
 				fmt.Printf("Error reverting to snapshot %s for pod %s: %v\n", snapshot, vmName, err)
 				failed = append(failed, vmName)
-				return err
-			}
-
-			err = task.Wait(vSphereClient.ctx)
-			if err != nil {
-				log.Println(errors.Wrap(err, "Error waiting for task"))
 				return err
 			}
 			return nil
