@@ -36,7 +36,7 @@ func adminGetAllPods(c *gin.Context) {
 		})
 	}
 
-	c.JSON(http.StatusOK, pods)
+	c.JSON(http.StatusOK, _pods)
 }
 
 func adminDeletePod(c *gin.Context) {
