@@ -346,7 +346,7 @@ func bulkRevertPods(filter []string, snapshot string) ([]string, error) {
 	}
 
 	if err := wg.Wait(); err != nil {
-		return failed, errors.Wrap(err, "Error modifying power state for pods")
+		return failed, errors.Wrap(err, "Error reverting pods to snapshot")
 	}
 
 	return failed, nil
