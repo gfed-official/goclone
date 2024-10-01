@@ -338,6 +338,7 @@ func CloneVMsFromTemplates(templates []mo.VirtualMachine, folder *object.Folder,
 		}
 
         template.Name = strings.Join([]string{pgNum, template.Name}, "-")
+        fmt.Println(template.Name)
 		folderObj := object.NewFolder(vSphereClient.client, folder.Reference())
 		wg.Add(1)
 		go CloneVM(&wg, template, *folderObj, spec)
@@ -348,6 +349,7 @@ func CloneVMsFromTemplates(templates []mo.VirtualMachine, folder *object.Folder,
 func CloneVM(wg *sync.WaitGroup, vm mo.VirtualMachine, folder object.Folder, spec types.VirtualMachineCloneSpec) {
 	defer wg.Done()
 
+    fmt.Println("Cloning VM: ", vm.Name)
 	vmObj := object.NewVirtualMachine(vSphereClient.client, vm.Reference())
 	task, err := vmObj.Clone(vSphereClient.ctx, &folder, vm.Name, spec)
 	if err != nil {
