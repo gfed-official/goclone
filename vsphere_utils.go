@@ -337,6 +337,7 @@ func CloneVMsFromTemplates(templates []mo.VirtualMachine, folder *object.Folder,
 			Config: &configSpec,
 		}
 
+        template.Name = strings.Join([]string{pgNum, template.Name}, "-")
 		folderObj := object.NewFolder(vSphereClient.client, folder.Reference())
 		wg.Add(1)
 		go CloneVM(&wg, template, *folderObj, spec)
