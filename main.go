@@ -12,8 +12,7 @@ import (
 	"github.com/vmware/govmomi"
 	"github.com/vmware/govmomi/find"
 	"github.com/vmware/govmomi/object"
-	"github.com/vmware/govmomi/vapi/rest"
-	"github.com/vmware/govmomi/vapi/tags"
+	"github.com/vmware/govmomi/session"
 	"github.com/vmware/govmomi/vim25"
 	"github.com/vmware/govmomi/vim25/mo"
 	"github.com/vmware/govmomi/vim25/soap"
@@ -24,9 +23,9 @@ import (
 )
 
 type VSphereClient struct {
-	client     *vim25.Client
-	ctx        context.Context
-	restClient *rest.Client
+	client  *vim25.Client
+	session *session.Manager
+	ctx     context.Context
 }
 
 var (
@@ -46,11 +45,8 @@ var (
 	dvsMo                   mo.DistributedVirtualSwitch
 	finder                  *find.Finder
 	noAccessRole            *types.AuthorizationRole
-	passwordKeyID           int32
-	tagManager              *tags.Manager
 	targetResourcePool      *object.ResourcePool
 	templateFolder          *object.Folder
-	usernameKeyID           int32
 	vSphereClient           *VSphereClient
 	wanPG                   *object.DistributedVirtualPortgroup
 	competitionPG           *object.DistributedVirtualPortgroup
@@ -82,16 +78,13 @@ func init() {
 		log.Fatalln(errors.Wrap(err, "Error creating vSphere client"))
 	}
 
-	rc := rest.NewClient(client.Client)
-	err = rc.Login(ctx, u.User)
-	if err != nil {
-		log.Fatalln(errors.Wrap(err, "Error creating REST client"))
-	}
+	sess := session.NewManager(client.Client)
+	sess.Login(ctx, u.User)
 
 	vSphereClient = &VSphereClient{
-		client:     client.Client,
-		restClient: rc,
-		ctx:        context.Background(),
+		client:  client.Client,
+		session: sess,
+		ctx:     context.Background(),
 	}
 
 	InitializeGovmomi()
@@ -189,8 +182,6 @@ func InitializeGovmomi() {
 		log.Fatalln(errors.Wrap(err, "Error finding destination folder"))
 	}
 
-	tagManager = tags.NewManager(vSphereClient.restClient)
-
 	targetResourcePool, err = finder.ResourcePool(vSphereClient.ctx, vCenterConfig.TargetResourcePool)
 	if err != nil {
 		log.Fatalln(errors.Wrap(err, "Error finding target resource pool"))
@@ -213,21 +204,12 @@ func InitializeGovmomi() {
 	}
 	competitionPG = object.NewDistributedVirtualPortgroup(vSphereClient.client, compPG.Reference())
 
+	customFieldsManager = object.NewCustomFieldsManager(vSphereClient.client)
+
 	authManager = object.NewAuthorizationManager(vSphereClient.client)
 	roles, err := authManager.RoleList(vSphereClient.ctx)
 	if err != nil {
 		log.Fatalln(errors.Wrap(err, "Error listing roles"))
-	}
-
-	customFieldsManager = object.NewCustomFieldsManager(vSphereClient.client)
-	usernameKeyID, err = GetAttributeKeyID("goclone.username")
-	if err != nil {
-		log.Fatalln(errors.Wrap(err, "Error getting Username attribute key ID"))
-	}
-
-	passwordKeyID, err = GetAttributeKeyID("goclone.password")
-	if err != nil {
-		log.Fatalln(errors.Wrap(err, "Error getting Password attribute key ID"))
 	}
 
 	for _, role := range roles {

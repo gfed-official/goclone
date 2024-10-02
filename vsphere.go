@@ -148,17 +148,17 @@ func vSphereGetPresetTemplates(username string) ([]string, error) {
 	}
 
 	for _, rp := range rps {
-		tagsOnTmpl, err := GetTagsFromObject(rp.Reference())
+		attr, err := GetAttribute(rp.Reference(), "goclone.template.adminOnly")
 		if err != nil {
-			log.Println(errors.Wrap(err, "Error getting tags"))
 			return nil, err
 		}
-		tagNames := []string{}
-		for _, tag := range tagsOnTmpl {
-			tagNames = append(tagNames, tag.Name)
+
+		attrBool, err := strconv.ParseBool(attr)
+		if err != nil {
+			return nil, err
 		}
 
-		if !isAdm && slices.Contains(tagNames, "AdminOnly") {
+		if !isAdm && attrBool == true {
 			continue
 		}
 
@@ -515,12 +515,6 @@ func InitializeClone(podName, username string, portGroup int) (*types.ManagedObj
 	pgName := strings.Join([]string{strPortGroup, vCenterConfig.PortGroupSuffix}, "_")
 	tagName := strings.Join([]string{strPortGroup, podName, username}, "_")
 
-	tag, err := CreateTag(tagName)
-	if err != nil {
-		log.Println(errors.Wrap(err, "Error creating tag"))
-		return &types.ManagedObjectReference{}, &object.Network{}, &object.Folder{}, err
-	}
-
 	targetRP, err := CreateResourcePool(tagName, templateMap[podName].CompetitionPod)
 	if err != nil {
 		log.Println(errors.Wrap(err, "Error creating resource pool"))
@@ -530,12 +524,6 @@ func InitializeClone(podName, username string, portGroup int) (*types.ManagedObj
 	pg, err := CreatePortGroup(pgName, portGroup)
 	if err != nil {
 		log.Println(errors.Wrap(err, "Error creating portgroup"))
-		return &types.ManagedObjectReference{}, &object.Network{}, &object.Folder{}, err
-	}
-
-	err = AssignTagToObject(tag, pg)
-	if err != nil {
-		log.Println(errors.Wrap(err, "Error assigning tag"))
 		return &types.ManagedObjectReference{}, &object.Network{}, &object.Folder{}, err
 	}
 
@@ -573,12 +561,6 @@ func DestroyResources(podId string) error {
 	deleted_pg, _ := strconv.Atoi(strings.Split(podId, "_")[0])
 	delete(availablePortGroups.Data, deleted_pg)
 	availablePortGroups.Mu.Unlock()
-
-	err = DestroyTag(podId)
-	if err != nil {
-		log.Println(errors.Wrap(err, "Error destroying tag"))
-		return err
-	}
 
 	return nil
 }
@@ -630,9 +612,9 @@ func LoadTemplates() error {
 }
 
 func LoadTemplate(rp *object.ResourcePool, name string) (Template, error) {
-	tagsOnTmpl, err := GetTagsFromObject(rp.Reference())
+	attrs, err := GetAllAttributes(rp.Reference())
 	if err != nil {
-		log.Println(errors.Wrap(err, "Error getting tags"))
+		log.Println(errors.Wrap(err, "Error getting attributes"))
 		return Template{}, err
 	}
 
@@ -640,14 +622,20 @@ func LoadTemplate(rp *object.ResourcePool, name string) (Template, error) {
 	noRouter := false
 	competitionPod := false
 	pg := wanPG
-	for _, tag := range tagsOnTmpl {
-		switch tag.Name {
-		case "CompetitionPod":
-			competitionPod = true
-		case "NoRouter":
-			noRouter = true
-		case "natted":
-			natted = true
+	for key, value := range attrs {
+		switch key {
+		case "goclone.template.natted":
+			if value == "true" {
+				natted = true
+			}
+		case "goclone.template.noRouter":
+			if value == "true" {
+				noRouter = true
+			}
+		case "goclone.template.competitionPod":
+			if value == "true" {
+				competitionPod = true
+			}
 		}
 	}
 
@@ -673,7 +661,7 @@ func LoadTemplate(rp *object.ResourcePool, name string) (Template, error) {
 			fmt.Println(errors.Wrap(err, "Error getting VM name"))
 			return Template{}, err
 		}
-		username, err := GetVMAttribute(&vm, usernameKeyID)
+		username, err := GetAttribute(vm.Reference(), "goclone.vm.username")
 		if err != nil {
 			fmt.Println(errors.Wrap(err, "Error getting VM username"))
 			usernameMap[vmName] = ""
@@ -681,7 +669,7 @@ func LoadTemplate(rp *object.ResourcePool, name string) (Template, error) {
 			domainMap[vmName] = ""
 			continue
 		}
-		password, err := GetVMAttribute(&vm, passwordKeyID)
+		password, err := GetAttribute(vm.Reference(), "goclone.vm.password")
 		if err != nil {
 			fmt.Println(errors.Wrap(err, "Error getting VM password"))
 			usernameMap[vmName] = ""
