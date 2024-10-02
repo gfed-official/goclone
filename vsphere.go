@@ -156,17 +156,8 @@ func vSphereGetPresetTemplates(username string) ([]string, error) {
 		}
 
 		adminOnly := templateMap[rpName].AdminOnly
-		attr, err := GetAttribute(rp.Reference(), "goclone.template.adminOnly")
-		if err != nil {
-			return nil, err
-		}
 
-		attrBool, err := strconv.ParseBool(attr)
-		if err != nil {
-			return nil, err
-		}
-
-		if !isAdm && attrBool == true {
+		if !isAdm && adminOnly {
 			continue
 		}
 
