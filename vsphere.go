@@ -39,6 +39,7 @@ type Template struct {
 	Natted         bool
 	NoRouter       bool
 	CompetitionPod bool
+	AdminOnly      bool
 	WanPG          *object.DistributedVirtualPortgroup
 	VMsToHide      []*mo.VirtualMachine
 	VMAddresses    map[string]string
@@ -148,6 +149,13 @@ func vSphereGetPresetTemplates(username string) ([]string, error) {
 	}
 
 	for _, rp := range rps {
+		rpObj := object.NewResourcePool(vSphereClient.client, rp.Reference())
+		rpName, err := rpObj.ObjectName(vSphereClient.ctx)
+		if err != nil {
+			return nil, errors.Wrap(err, "Failed to get resource pool name")
+		}
+
+		adminOnly := templateMap[rpName].AdminOnly
 		attr, err := GetAttribute(rp.Reference(), "goclone.template.adminOnly")
 		if err != nil {
 			return nil, err
@@ -621,6 +629,7 @@ func LoadTemplate(rp *object.ResourcePool, name string) (Template, error) {
 	natted := false
 	noRouter := false
 	competitionPod := false
+	adminOnly := false
 	pg := wanPG
 	for key, value := range attrs {
 		switch key {
@@ -635,6 +644,10 @@ func LoadTemplate(rp *object.ResourcePool, name string) (Template, error) {
 		case "goclone.template.competitionPod":
 			if value == "true" {
 				competitionPod = true
+			}
+		case "goclone.template.adminOnly":
+			if value == "true" {
+				adminOnly = true
 			}
 		}
 	}
@@ -714,6 +727,7 @@ func LoadTemplate(rp *object.ResourcePool, name string) (Template, error) {
 		SourceRP:       rp,
 		VMs:            vms,
 		Natted:         natted,
+		AdminOnly:      adminOnly,
 		CompetitionPod: competitionPod,
 		NoRouter:       noRouter,
 		WanPG:          pg,
