@@ -172,45 +172,43 @@ func vSphereGetCustomTemplates() ([]gin.H, error) {
 	var templates []gin.H
 
 	templateFolder, err := finder.Folder(vSphereClient.ctx, vCenterConfig.TemplateFolder)
-
 	if err != nil {
 		return nil, errors.Wrap(err, "Failed to find templates folder")
 	}
 
-	templateSubfolderRefs, err := templateFolder.Children(vSphereClient.ctx)
+	folderChildren, err := templateFolder.Children(vSphereClient.ctx)
 	if err != nil {
 		return nil, errors.Wrap(err, "Failed to find template sub-folders")
 	}
 
 	pc := property.DefaultCollector(vSphereClient.client)
-
-	for _, subfolderRef := range templateSubfolderRefs {
+	for _, subfolderRef := range folderChildren {
 		var subfolder []mo.Folder
-		if subfolderRef.Reference().Type != templateFolder.Reference().Type {
+		switch subfolderRef.(type) {
+		case *object.Folder:
+			err := pc.Retrieve(vSphereClient.ctx, []types.ManagedObjectReference{subfolderRef.Reference()}, []string{"name", "childEntity"}, &subfolder)
+			if err != nil {
+				return nil, errors.Wrap(err, "Failed to retrieve templates from sub-folders")
+			}
+
+			var vms []mo.VirtualMachine
+			for _, vmRef := range subfolder[0].ChildEntity {
+				err := pc.Retrieve(vSphereClient.ctx, []types.ManagedObjectReference{vmRef.Reference()}, []string{"name"}, &vms)
+				if err != nil {
+					return nil, errors.Wrap(err, "Failed to retrieve VM template")
+				}
+			}
+
+			var vmNames []string
+			for _, vm := range vms {
+				vmNames = append(vmNames, vm.Name)
+			}
+			subfolderData := gin.H{"name": subfolder[0].Name, "vms": vmNames}
+			templates = append(templates, subfolderData)
+		default:
 			continue
 		}
-
-		err := pc.Retrieve(vSphereClient.ctx, []types.ManagedObjectReference{subfolderRef.Reference()}, []string{"name", "childEntity"}, &subfolder)
-		if err != nil {
-			return nil, errors.Wrap(err, "Failed to retrieve templates from sub-folders")
-		}
-
-		var vms []mo.VirtualMachine
-		for _, vmRef := range subfolder[0].ChildEntity {
-			err := pc.Retrieve(vSphereClient.ctx, []types.ManagedObjectReference{vmRef.Reference()}, []string{"name"}, &vms)
-			if err != nil {
-				return nil, errors.Wrap(err, "Failed to retrieve VM template")
-			}
-		}
-
-		var vmNames []string
-		for _, vm := range vms {
-			vmNames = append(vmNames, vm.Name)
-		}
-		subfolderData := gin.H{"name": subfolder[0].Name, "vms": vmNames}
-		templates = append(templates, subfolderData)
 	}
-
 	return templates, nil
 }
 
@@ -218,13 +216,11 @@ func vSphereGetPods(owner string) ([]Pod, error) {
 	var pods []Pod
 
 	ownerPods, err := finder.ResourcePoolList(vSphereClient.ctx, fmt.Sprintf("*_%s", owner)) // hard coded based on our naming scheme
-
-	// No pods found
 	if err != nil {
 		if _, ok := err.(*find.NotFoundError); ok {
 			return pods, nil
 		}
-		return nil, errors.Wrap(err, "Failed to get vApp list")
+		return nil, errors.Wrap(err, "Failed to get pod list")
 	}
 
 	// Collect found vApp refs
@@ -240,9 +236,6 @@ func vSphereGetPods(owner string) ([]Pod, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "Failed to collect references for your pods")
 	}
-
-	// serviceInstance := mo.ServiceInstance{}
-	// err = vSphereClient.RetrieveOne(mainCtx, , nil, &serviceInstance)
 
 	for _, rp := range rps {
 		pods = append(pods, Pod{Name: rp.Name, ResourceGroup: rp.Config.Entity.Value, ServerGUID: vSphereClient.client.ServiceContent.About.InstanceUuid})
@@ -291,7 +284,6 @@ func vSphereCustomClone(podName string, vmsToClone []string, nat bool, username 
 	}
 
 	var nextAvailablePortGroup int
-
 	availablePortGroups.Mu.Lock()
 	for i := vCenterConfig.StartingPortGroup; i < vCenterConfig.EndingPortGroup; i++ {
 		if _, exists := availablePortGroups.Data[i]; !exists {
