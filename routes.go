@@ -217,17 +217,6 @@ func health(c *gin.Context) {
 		return
 	}
 
-	isActive, err := vSphereClient.session.SessionIsActive(vSphereClient.ctx)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-
-	if !isActive {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "vSphere session is not active"})
-		return
-	}
-
 	c.JSON(http.StatusOK, gin.H{"status": "ok"})
 }
 

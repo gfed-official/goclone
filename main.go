@@ -12,7 +12,6 @@ import (
 	"github.com/vmware/govmomi"
 	"github.com/vmware/govmomi/find"
 	"github.com/vmware/govmomi/object"
-	"github.com/vmware/govmomi/session"
 	"github.com/vmware/govmomi/vim25"
 	"github.com/vmware/govmomi/vim25/mo"
 	"github.com/vmware/govmomi/vim25/soap"
@@ -23,9 +22,8 @@ import (
 )
 
 type VSphereClient struct {
-	client  *vim25.Client
-	session *session.Manager
-	ctx     context.Context
+	client *vim25.Client
+	ctx    context.Context
 }
 
 var (
@@ -78,13 +76,14 @@ func init() {
 		log.Fatalln(errors.Wrap(err, "Error creating vSphere client"))
 	}
 
-	sess := session.NewManager(client.Client)
-	sess.Login(ctx, u.User)
+	err = client.Login(ctx, u.User)
+	if err != nil {
+		log.Fatalln(errors.Wrap(err, "Error logging in"))
+	}
 
 	vSphereClient = &VSphereClient{
-		client:  client.Client,
-		session: sess,
-		ctx:     context.Background(),
+		client: client.Client,
+		ctx:    context.Background(),
 	}
 
 	InitializeGovmomi()
