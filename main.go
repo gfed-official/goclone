@@ -12,7 +12,6 @@ import (
 	"github.com/vmware/govmomi"
 	"github.com/vmware/govmomi/find"
 	"github.com/vmware/govmomi/object"
-	"github.com/vmware/govmomi/vapi/rest"
 	"github.com/vmware/govmomi/vapi/tags"
 	"github.com/vmware/govmomi/vim25"
 	"github.com/vmware/govmomi/vim25/mo"
@@ -24,9 +23,8 @@ import (
 )
 
 type VSphereClient struct {
-	client     *vim25.Client
-	ctx        context.Context
-	restClient *rest.Client
+	client *vim25.Client
+	ctx    context.Context
 }
 
 var (
@@ -37,21 +35,20 @@ var (
 )
 
 var (
-	authManager        *object.AuthorizationManager
-	cloneRole          *types.AuthorizationRole
-	customCloneRole    *types.AuthorizationRole
-	datastore          *object.Datastore
-    destinationFolder  *object.Folder
-	dvsMo              mo.DistributedVirtualSwitch
-	finder             *find.Finder
-	noAccessRole       *types.AuthorizationRole
-	tagManager         *tags.Manager
-	targetResourcePool *object.ResourcePool
-	templateFolder     *object.Folder
-	vSphereClient      *VSphereClient
-	wanPG              *object.DistributedVirtualPortgroup
-    competitionPG      *object.DistributedVirtualPortgroup
-    competitionResourcePool *object.ResourcePool
+	authManager             *object.AuthorizationManager
+	cloneRole               *types.AuthorizationRole
+	customCloneRole         *types.AuthorizationRole
+	datastore               *object.Datastore
+	destinationFolder       *object.Folder
+	dvsMo                   mo.DistributedVirtualSwitch
+	finder                  *find.Finder
+	noAccessRole            *types.AuthorizationRole
+	targetResourcePool      *object.ResourcePool
+	templateFolder          *object.Folder
+	vSphereClient           *VSphereClient
+	wanPG                   *object.DistributedVirtualPortgroup
+	competitionPG           *object.DistributedVirtualPortgroup
+	competitionResourcePool *object.ResourcePool
 )
 
 func init() {
@@ -79,16 +76,11 @@ func init() {
 		log.Fatalln(errors.Wrap(err, "Error creating vSphere client"))
 	}
 
-	rc := rest.NewClient(client.Client)
-	err = rc.Login(ctx, u.User)
-	if err != nil {
-		log.Fatalln(errors.Wrap(err, "Error creating REST client"))
-	}
+	client.Login(ctx, u.User)
 
 	vSphereClient = &VSphereClient{
-		client:     client.Client,
-		restClient: rc,
-		ctx:        context.Background(),
+		client: client.Client,
+		ctx:    context.Background(),
 	}
 
 	InitializeGovmomi()
@@ -181,35 +173,32 @@ func InitializeGovmomi() {
 		log.Fatalln(errors.Wrap(err, "Error finding template folder"))
 	}
 
-    destinationFolder, err = finder.Folder(vSphereClient.ctx, vCenterConfig.DestinationFolder)
-    if err != nil {
-        log.Fatalln(errors.Wrap(err, "Error finding destination folder"))
-    }
-
-	tagManager = tags.NewManager(vSphereClient.restClient)
+	destinationFolder, err = finder.Folder(vSphereClient.ctx, vCenterConfig.DestinationFolder)
+	if err != nil {
+		log.Fatalln(errors.Wrap(err, "Error finding destination folder"))
+	}
 
 	targetResourcePool, err = finder.ResourcePool(vSphereClient.ctx, vCenterConfig.TargetResourcePool)
-    if err != nil {
-        log.Fatalln(errors.Wrap(err, "Error finding target resource pool"))
-    }
+	if err != nil {
+		log.Fatalln(errors.Wrap(err, "Error finding target resource pool"))
+	}
 
-    competitionResourcePool, err = finder.ResourcePool(vSphereClient.ctx, vCenterConfig.CompetitionResourcePool)
-    if err != nil {
-        log.Fatalln(errors.Wrap(err, "Error finding competition resource pool"))
-    }
+	competitionResourcePool, err = finder.ResourcePool(vSphereClient.ctx, vCenterConfig.CompetitionResourcePool)
+	if err != nil {
+		log.Fatalln(errors.Wrap(err, "Error finding competition resource pool"))
+	}
 
 	pg, err := finder.Network(vSphereClient.ctx, vCenterConfig.DefaultWanPortGroup)
 	if err != nil {
 		log.Fatalln(errors.Wrap(err, "Error finding WAN port group"))
 	}
 	wanPG = object.NewDistributedVirtualPortgroup(vSphereClient.client, pg.Reference())
-    
-    compPG, err := finder.Network(vSphereClient.ctx, vCenterConfig.CompetitionWanPortGroup)
-    if err != nil {
-        log.Fatalln(errors.Wrap(err, "Error finding competition WAN port group"))
-    }
-    competitionPG = object.NewDistributedVirtualPortgroup(vSphereClient.client, compPG.Reference())
 
+	compPG, err := finder.Network(vSphereClient.ctx, vCenterConfig.CompetitionWanPortGroup)
+	if err != nil {
+		log.Fatalln(errors.Wrap(err, "Error finding competition WAN port group"))
+	}
+	competitionPG = object.NewDistributedVirtualPortgroup(vSphereClient.client, compPG.Reference())
 
 	authManager = object.NewAuthorizationManager(vSphereClient.client)
 	roles, err := authManager.RoleList(vSphereClient.ctx)

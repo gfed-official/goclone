@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"strings"
 	"sync"
@@ -10,40 +11,9 @@ import (
 	"github.com/vmware/govmomi/guest"
 	"github.com/vmware/govmomi/object"
 	"github.com/vmware/govmomi/property"
-	"github.com/vmware/govmomi/vapi/tags"
 	"github.com/vmware/govmomi/vim25/mo"
 	"github.com/vmware/govmomi/vim25/types"
 )
-
-func CreateTag(name string) (tags.Tag, error) {
-	tag := tags.Tag{
-		Name:        name,
-		Description: "Tag created by Kamino",
-		CategoryID:  "CloneOnDemand",
-	}
-
-	_, err := tagManager.CreateTag(vSphereClient.ctx, &tag)
-	if err != nil {
-		log.Println(errors.Wrap(err, "Error creating tag"))
-		return tags.Tag{}, err
-	}
-
-	tag, err = GetTagByName(name)
-	if err != nil {
-		log.Println(errors.Wrap(err, "Error getting tag by name"))
-		return tags.Tag{}, err
-	}
-	return tag, nil
-}
-
-func GetTagByName(name string) (tags.Tag, error) {
-	tag, err := tagManager.GetTag(vSphereClient.ctx, name)
-	if err != nil {
-		log.Println(errors.Wrap(err, "Error getting tag by name"))
-		return tags.Tag{}, err
-	}
-	return *tag, nil
-}
 
 func CreatePortGroup(name string, vlanID int) (object.NetworkReference, error) {
 	dvsObj := object.NewDistributedVirtualSwitch(vSphereClient.client, dvsMo.Reference())
@@ -89,25 +59,6 @@ func GetPortGroup(name string) (object.NetworkReference, error) {
 	return pg, nil
 }
 
-func AssignTagToObject(tag tags.Tag, entity mo.Reference) error {
-	err := tagManager.AttachTag(vSphereClient.ctx, tag.ID, entity)
-	if err != nil {
-		log.Println(errors.Wrap(err, "Error assigning tag"))
-		return err
-	}
-	return nil
-}
-
-func GetTagsFromObject(entity types.ManagedObjectReference) ([]tags.Tag, error) {
-	tagList, err := tagManager.GetAttachedTags(vSphereClient.ctx, entity)
-	if err != nil {
-		log.Println(errors.Wrap(err, "Error getting attached objects from tags"))
-		return []tags.Tag{}, err
-	}
-
-	return tagList, nil
-}
-
 func CreateResourcePool(name string, compPod bool) (types.ManagedObjectReference, error) {
 	rpSpec := types.ResourceConfigSpec{
 		CpuAllocation: types.ResourceAllocationInfo{
@@ -140,9 +91,6 @@ func CreateResourcePool(name string, compPod bool) (types.ManagedObjectReference
 		log.Println(errors.Wrap(err, "Error creating resource pool"))
 	}
 
-	tag, err := tagManager.GetTag(vSphereClient.ctx, name)
-	err = AssignTagToObject(*tag, child.Reference())
-
 	return child.Reference(), nil
 }
 
@@ -161,9 +109,6 @@ func CreateVMFolder(name string) (*object.Folder, error) {
 	if err != nil {
 		log.Println(errors.Wrap(err, "Failed to create folder"))
 	}
-
-	tag, err := tagManager.GetTag(vSphereClient.ctx, name)
-	err = AssignTagToObject(*tag, newFolder.Reference())
 
 	return newFolder, nil
 }
@@ -200,15 +145,13 @@ func GetVMsToHide(vms []mo.VirtualMachine) ([]*mo.VirtualMachine, error) {
 
 func IsHidden(wg *sync.WaitGroup, vm *mo.VirtualMachine, hiddenVMs *[]*mo.VirtualMachine) {
 	defer wg.Done()
-	tags, err := GetTagsFromObject(vm.Reference())
+	attr, err := GetObjectAttributes(vm.Reference(), "goclone.vm.hidden")
 	if err != nil {
-		log.Println(errors.Wrap(err, "Failed to get tags"))
+		fmt.Println(errors.Wrap(err, "Failed to get attributes"))
 	}
 
-	for _, tag := range tags {
-		if tag.Name == "hidden" {
-			*hiddenVMs = append(*hiddenVMs, vm)
-		}
+	if attr != "" {
+		*hiddenVMs = append(*hiddenVMs, vm)
 	}
 }
 
@@ -336,7 +279,7 @@ func CloneVMsFromTemplates(templates []mo.VirtualMachine, folder *object.Folder,
 			Config: &configSpec,
 		}
 
-        template.Name = strings.Join([]string{pgNum, template.Name}, "-")
+		template.Name = strings.Join([]string{pgNum, template.Name}, "-")
 		folderObj := object.NewFolder(vSphereClient.client, folder.Reference())
 		wg.Add(1)
 		go CloneVM(&wg, template, *folderObj, spec)
@@ -558,21 +501,6 @@ func DestroyPortGroup(pg types.ManagedObjectReference) error {
 	return nil
 }
 
-func DestroyTag(name string) error {
-	tag, err := GetTagByName(name)
-	if err != nil {
-		log.Println(errors.Wrap(err, "Error getting tag by name"))
-		return err
-	}
-
-	err = tagManager.DeleteTag(vSphereClient.ctx, &tag)
-	if err != nil {
-		log.Println(errors.Wrap(err, "Error deleting tag"))
-		return err
-	}
-	return nil
-}
-
 func RunProgramOnVM(vm *mo.VirtualMachine, program types.GuestProgramSpec, auth types.NamePasswordAuthentication) error {
 	pc := property.DefaultCollector(vSphereClient.client)
 
@@ -757,14 +685,36 @@ func GetVMsOfPods(pods []*object.ResourcePool) ([]*object.VirtualMachine, error)
 			return []*object.VirtualMachine{}, err
 		}
 
-		_vms, err := folder.Children(vSphereClient.ctx)
+		vms, err := folder.Children(vSphereClient.ctx)
 		if err != nil {
 			log.Println(errors.Wrap(err, "Error getting children"))
 			return []*object.VirtualMachine{}, err
 		}
-		for _, _vm := range _vms {
-			vms = append(vms, _vm.(*object.VirtualMachine))
+		for _, vm := range vms {
+			vms = append(vms, vm.(*object.VirtualMachine))
 		}
 	}
 	return vms, nil
+}
+
+func GetAttribute(ref types.ManagedObjectReference, key string) (string, error) {
+	keyID, err := customFieldsManager.FindKey(vSphereClient.ctx, key)
+	if err != nil {
+		return "", errors.Wrap(err, "Error getting attribute key ID")
+	}
+
+	target := mo.ManagedEntity{}
+	pc := property.DefaultCollector(vSphereClient.client)
+	err = pc.Retrieve(vSphereClient.ctx, []types.ManagedObjectReference{ref}, []string{"customValue"}, &target)
+	if err != nil {
+		return "", errors.Wrap(err, "Error retrieving object")
+	}
+
+	for _, attr := range target.CustomValue {
+		attr := attr.(*types.CustomFieldStringValue)
+		if attr.Key == keyID {
+			return attr.Value, nil
+		}
+	}
+	return "", errors.New("Attribute not found")
 }
