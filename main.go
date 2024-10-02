@@ -76,11 +76,6 @@ func init() {
 		log.Fatalln(errors.Wrap(err, "Error creating vSphere client"))
 	}
 
-	err = client.Login(ctx, u.User)
-	if err != nil {
-		log.Fatalln(errors.Wrap(err, "Error logging in"))
-	}
-
 	vSphereClient = &VSphereClient{
 		client: client.Client,
 		ctx:    context.Background(),
