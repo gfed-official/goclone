@@ -142,7 +142,7 @@ func vSphereGetPresetTemplates(username string) ([]string, error) {
 	pc := property.DefaultCollector(vSphereClient.client)
 
 	var rps []mo.ResourcePool
-	err = pc.Retrieve(vSphereClient.ctx, trp.ResourcePool, []string{"name"}, &rps)
+	err = pc.Retrieve(vSphereClient.ctx, trp.ResourcePool, []string{"name", "customValue"}, &rps)
 	if err != nil {
 		return nil, errors.Wrap(err, "Failed to collect references for preset templates")
 	}
