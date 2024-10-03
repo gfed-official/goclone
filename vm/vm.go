@@ -59,11 +59,12 @@ func (vm *VM) PowerOff() error {
 }
 
 func (vm *VM) SetSnapshot(name string) error {
-    if snap, err := vm.GetSnapshot(name); err != nil && snap != nil {
-        return nil
-    }
 
     vmObj := object.NewVirtualMachine(vm.Client, vm.Ref.Reference())
+    _, err := vmObj.FindSnapshot(*vm.Ctx, name)
+    if err != nil {
+        return nil
+    }
     task, err := vmObj.CreateSnapshot(*vm.Ctx, name, "", false, false)
     if err != nil {
         return err
@@ -73,18 +74,6 @@ func (vm *VM) SetSnapshot(name string) error {
         return err
     }
     return nil
-}
-
-func (vm *VM) GetSnapshot(name string) (*types.ManagedObjectReference, error) {
-    vmObj := object.NewVirtualMachine(vm.Client, vm.Ref.Reference())
-    snap, err := vmObj.FindSnapshot(*vm.Ctx, name)
-    if err != nil {
-        return nil, err
-    }
-    if snap == nil {
-        return nil, errors.New("Snapshot not found")
-    }
-    return snap, nil
 }
 
 func (vm *VM) RevertSnapshot(name string) error {
