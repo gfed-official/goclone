@@ -1,15 +1,12 @@
 package main
 
 import (
-    "fmt"
     "goclone/vm"
     "log"
     "strings"
     "sync"
-    "time"
 
     "github.com/pkg/errors"
-    "github.com/vmware/govmomi/guest"
     "github.com/vmware/govmomi/object"
     "github.com/vmware/govmomi/property"
     "github.com/vmware/govmomi/vim25/mo"
@@ -155,46 +152,6 @@ func HideVM(wg *sync.WaitGroup, vm *mo.VirtualMachine, username string) {
     }
 }
 
-func CreateSnapshot(vms []mo.VirtualMachine, name string) error {
-    for _, vm := range vms {
-        vm := object.NewVirtualMachine(vSphereClient.client, vm.Reference())
-        _, err := vm.FindSnapshot(vSphereClient.ctx, name)
-        if err == nil {
-            continue
-        }
-
-        task, err := vm.CreateSnapshot(vSphereClient.ctx, name, "", false, false)
-        if err != nil {
-            log.Println(errors.Wrap(err, "Failed to create snapshot"))
-            return err
-        }
-
-        err = task.Wait(vSphereClient.ctx)
-        if err != nil {
-            log.Println(errors.Wrap(err, "Failed to wait for task"))
-            return err
-        }
-
-        log.Printf("Snapshot created for VM %s\n", vm.Name())
-    }
-
-    return nil
-}
-
-func GetSnapshot(vms []mo.VirtualMachine, name string) []*object.VirtualMachine {
-    var vmsWithoutSnapshot []*object.VirtualMachine
-    for _, vm := range vms {
-        vmObj := object.NewVirtualMachine(vSphereClient.client, vm.Reference())
-        _, err := vmObj.FindSnapshot(vSphereClient.ctx, name)
-        if err != nil {
-            log.Println(errors.Wrap(err, "Failed to find snapshot"))
-            vmsWithoutSnapshot = append(vmsWithoutSnapshot, vmObj)
-        }
-    }
-
-    return vmsWithoutSnapshot
-}
-
 func GetSnapshotRef(vm vm.VM, name string) types.ManagedObjectReference {
     vmObj := object.NewVirtualMachine(vSphereClient.client, vm.Ref.Reference())
     snapshot, err := vmObj.FindSnapshot(vSphereClient.ctx, name)
@@ -255,39 +212,6 @@ func CloneVMsFromTemplates(templates []vm.VM, folder *object.Folder, resourcePoo
         template.CloneVM(&wg, &spec, folderObj)
     }
     wg.Wait()
-}
-
-func CloneVM(wg *sync.WaitGroup, vm mo.VirtualMachine, folder object.Folder, spec types.VirtualMachineCloneSpec) {
-    defer wg.Done()
-
-    vmObj := object.NewVirtualMachine(vSphereClient.client, vm.Reference())
-    task, err := vmObj.Clone(vSphereClient.ctx, &folder, vm.Name, spec)
-    if err != nil {
-        log.Println(errors.Wrap(err, "Failed to clone VM"))
-    }
-
-    err = task.Wait(vSphereClient.ctx)
-    if err != nil {
-        log.Println(errors.Wrap(err, "Failed to wait for task"))
-    }
-}
-
-func ConfigureVMNetwork(vmObj *object.VirtualMachine, pg types.ManagedObjectReference) (types.VirtualMachineConfigSpec, error) {
-    var configSpec types.VirtualMachineConfigSpec
-    devices, err := vmObj.Device(vSphereClient.ctx)
-    if err != nil {
-        log.Println(errors.Wrap(err, "Failed to get devices"))
-        return types.VirtualMachineConfigSpec{}, err
-    }
-    for _, device := range devices {
-        if device.GetVirtualDevice().DeviceInfo.GetDescription().Label == "Network adapter 1" {
-            deviceChange := ConfigureNIC(device, pg)
-            configSpec = types.VirtualMachineConfigSpec{
-                DeviceChange: []types.BaseVirtualDeviceConfigSpec{deviceChange},
-            }
-        }
-    }
-    return configSpec, nil
 }
 
 func CreateRouter(srcRP, ds types.ManagedObjectReference, folder *object.Folder, natted bool, rpName string) (*mo.VirtualMachine, error) {
@@ -427,20 +351,26 @@ func DestroyFolder(folderObj *object.Folder) {
     }
 
     for _, vm := range vms {
-        err = PowerOffVM(vm.(*object.VirtualMachine))
+        vmObj := object.NewVirtualMachine(vSphereClient.client, vm.Reference())
+        task, err := vmObj.PowerOff(vSphereClient.ctx)
         if err != nil {
-            log.Println(errors.Wrap(err, "Error powering off VM"))
+            log.Println(errors.Wrap(err, "Error destroying VM"))
         }
-    }
 
-    task, err := folderObj.Destroy(vSphereClient.ctx)
-    if err != nil {
-        log.Println(errors.Wrap(err, "Error destroying folder"))
-    }
+        err = task.Wait(vSphereClient.ctx)
+        if err != nil {
+            log.Println(errors.Wrap(err, "Error waiting for task"))
+        }
 
-    err = task.Wait(vSphereClient.ctx)
-    if err != nil {
-        log.Println(errors.Wrap(err, "Error waiting for task"))
+        task, err = folderObj.Destroy(vSphereClient.ctx)
+        if err != nil {
+            log.Println(errors.Wrap(err, "Error destroying folder"))
+        }
+
+        err = task.Wait(vSphereClient.ctx)
+        if err != nil {
+            log.Println(errors.Wrap(err, "Error waiting for task"))
+        }
     }
 }
 
@@ -469,88 +399,6 @@ func DestroyPortGroup(pg types.ManagedObjectReference) error {
     }
 
     return nil
-}
-
-func RunProgramOnVM(vm vm.VM, program types.GuestProgramSpec, auth types.NamePasswordAuthentication) error {
-    pc := property.DefaultCollector(vSphereClient.client)
-
-    timeout := time.After(2 * time.Minute)
-    ticker := time.Tick(2 * time.Second)
-    retries := 0
-    for {
-        select {
-        case <-timeout:
-            return errors.New("Timeout waiting for VM to be ready")
-        case <-ticker:
-            vmMo := mo.VirtualMachine{}
-            err := pc.Retrieve(vSphereClient.ctx, []types.ManagedObjectReference{vm.Ref.Reference()}, []string{"guest"}, &vmMo)
-            if err != nil {
-                log.Println(errors.Wrap(err, "Error retrieving router"))
-                return err
-            }
-            if vmMo.Guest != nil && vmMo.Guest.ToolsRunningStatus == "guestToolsRunning" {
-                gom := guest.NewOperationsManager(vSphereClient.client, vm.Ref.Reference())
-
-                procMan, err := gom.ProcessManager(vSphereClient.ctx)
-                if err != nil {
-                    log.Println(errors.Wrap(err, "Error getting process manager"))
-                    return err
-                }
-
-                _, err = procMan.StartProgram(vSphereClient.ctx, &auth, &program)
-                if err != nil {
-                    if retries < 2 && strings.Contains(err.Error(), "Failed to authenticate") {
-                        retries++
-                        time.Sleep(time.Second * 20)
-                        continue
-                    }
-                    log.Println(errors.Wrap(err, "Error starting program"))
-                    return err
-                }
-
-                return nil
-            }
-        }
-    }
-}
-
-func PowerOffVM(vm *object.VirtualMachine) error {
-    task, err := vm.PowerOff(vSphereClient.ctx)
-    if err != nil {
-        log.Println(errors.Wrap(err, "Error powering off VM"))
-        return err
-    }
-
-    err = task.Wait(vSphereClient.ctx)
-    if err != nil {
-        log.Println(errors.Wrap(err, "Error waiting for task"))
-        return err
-    }
-
-    return nil
-}
-
-func SnapshotVMs(vms []mo.VirtualMachine, name string) {
-    var wg sync.WaitGroup
-    for _, vm := range vms {
-        wg.Add(1)
-        go SnapshotVM(&wg, &vm, name)
-    }
-    wg.Wait()
-}
-
-func SnapshotVM(wg *sync.WaitGroup, vm *mo.VirtualMachine, name string) {
-    defer wg.Done()
-    vmObj := object.NewVirtualMachine(vSphereClient.client, vm.Reference())
-    task, err := vmObj.CreateSnapshot(vSphereClient.ctx, name, "", false, false)
-    if err != nil {
-        log.Println(errors.Wrap(err, "Error creating snapshot"))
-    }
-
-    err = task.Wait(vSphereClient.ctx)
-    if err != nil {
-        log.Println(errors.Wrap(err, "Error waiting for task"))
-    }
 }
 
 func AssignPermissionToObjects(permission *types.Permission, object []types.ManagedObjectReference) error {
@@ -587,22 +435,6 @@ func GetChildResourcePools(resourcePool string) ([]*object.ResourcePool, error) 
     }
 
     return rpList, nil
-}
-
-func RevertVM(vm *object.VirtualMachine, name string) error {
-    vmObj := object.NewVirtualMachine(vSphereClient.client, vm.Reference())
-    task, err := vmObj.RevertToSnapshot(vSphereClient.ctx, name, false)
-    if err != nil {
-        log.Println(errors.Wrap(err, "Error reverting to snapshot"))
-        return err
-    }
-
-    err = task.Wait(vSphereClient.ctx)
-    if err != nil {
-        log.Println(errors.Wrap(err, "Error waiting for task"))
-        return err
-    }
-    return nil
 }
 
 func GetAllPods() ([]*object.ResourcePool, error) {
@@ -647,28 +479,38 @@ func GetPodsMatchingFilter(filter []string) ([]*object.ResourcePool, error) {
     return filteredPods, nil
 }
 
-func GetVMsOfPods(pods []*object.ResourcePool) ([]*object.VirtualMachine, error) {
-    var vms []*object.VirtualMachine
+func GetVMsOfPods(pods []*object.ResourcePool) ([]vm.VM, error) {
+    var vms []vm.VM
 
     for _, pod := range pods {
         podName, err := pod.ObjectName(vSphereClient.ctx)
         if err != nil {
-            return []*object.VirtualMachine{}, errors.Wrap(err, "Error getting pod name")
+            return []vm.VM{}, errors.Wrap(err, "Error getting pod name")
         }
 
         folder, err := finder.Folder(vSphereClient.ctx, podName)
         if err != nil {
             log.Println(errors.Wrap(err, "Error finding folder"))
-            return []*object.VirtualMachine{}, err
+            return []vm.VM{}, err
         }
 
-        vms, err := folder.Children(vSphereClient.ctx)
+        vmList, err := folder.Children(vSphereClient.ctx)
         if err != nil {
             log.Println(errors.Wrap(err, "Error getting children"))
-            return []*object.VirtualMachine{}, err
+            return []vm.VM{}, err
         }
-        for _, vm := range vms {
-            vms = append(vms, vm.(*object.VirtualMachine))
+        for _, v := range vmList {
+            vmObj := object.NewVirtualMachine(vSphereClient.client, v.Reference())
+            vmName, err := vmObj.ObjectName(vSphereClient.ctx)
+            if err != nil {
+                log.Println(errors.Wrap(err, "Error getting VM name"))
+                return []vm.VM{}, err
+            }
+            newVM := vm.VM{
+                Name: vmName,
+                Ref: v,
+            }
+            vms = append(vms, newVM)
         }
     }
     return vms, nil
@@ -720,18 +562,4 @@ func GetAllAttributes(ref types.ManagedObjectReference) (map[string]string, erro
     }
 
     return attrs, nil
-}
-
-func GetVMGuestOS(vms []mo.VirtualMachine) (map[string]string, error) {
-    var vmGuestOS = make(map[string]string)
-    for _, vm := range vms {
-        vmObj := object.NewVirtualMachine(vSphereClient.client, vm.Reference())
-        vmName, err := vmObj.ObjectName(vSphereClient.ctx)
-        if err != nil {
-            fmt.Println(errors.Wrap(err, "Error getting VM name"))
-            return nil, err
-        }
-        vmGuestOS[vmName] = strings.ToLower(vm.Config.GuestFullName)
-    }
-    return vmGuestOS, nil
 }

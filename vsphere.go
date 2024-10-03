@@ -378,7 +378,7 @@ func TemplateClone(sourceRP, username string, portGroup int) error {
 				Username: vCenterConfig.RouterUsername,
 				Password: vCenterConfig.RouterPassword,
 			}
-			err = RunProgramOnVM(router, program, auth)
+			err = router.RunProgramOnVM(program, auth)
 			if err != nil {
 				log.Println(errors.Wrap(err, "Error running program on router"))
 				return err
@@ -493,7 +493,7 @@ func CustomClone(podName string, vmsToClone []string, natted bool, username stri
 			Password: vCenterConfig.RouterPassword,
 		}
 
-		err = RunProgramOnVM(router, program, auth)
+		err = router.RunProgramOnVM(program, auth)
 		if err != nil {
 			log.Println(errors.Wrap(err, "Error running program on router"))
 			return err
@@ -720,11 +720,16 @@ func LoadTemplate(rp *object.ResourcePool, name string) (Template, error) {
 	}
 
 
-	err = CreateSnapshot(vms, "SnapshotForCloning")
-	if err != nil {
-		log.Println(errors.Wrap(err, "Error creating snapshot"))
-		return Template{}, err
-	}
+    wg := errgroup.Group{}
+    for _, vm := range vmList {
+        wg.Go(func() error {
+            return vm.SetSnapshot("SnapshotForCloning")
+        })
+    }
+
+    if err := wg.Wait(); err != nil {
+        return Template{}, errors.Wrap(err, "Error setting snapshot")
+    }
 
 	template := Template{
 		Name:           name,

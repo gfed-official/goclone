@@ -4,9 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
+	"time"
 
+	"github.com/vmware/govmomi/guest"
 	"github.com/vmware/govmomi/object"
+	"github.com/vmware/govmomi/property"
 	"github.com/vmware/govmomi/vim25"
 	"github.com/vmware/govmomi/vim25/mo"
 	"github.com/vmware/govmomi/vim25/types"
@@ -154,6 +158,45 @@ func (vm *VM) GetGuestOS() string {
     return vm.Ref.(*mo.VirtualMachine).Config.GuestFullName
 }
 
+func (vm *VM) RunProgramOnVM(program types.GuestProgramSpec, auth types.NamePasswordAuthentication) error {
+    pc := property.DefaultCollector(vm.Client)
+
+    timeout := time.After(2 * time.Minute)
+    ticker := time.Tick(2 * time.Second)
+    retries := 0
+    for {
+        select {
+        case <-timeout:
+            return errors.New("Timeout waiting for VM to be ready")
+        case <-ticker:
+            vmMo := mo.VirtualMachine{}
+            err := pc.Retrieve(*vm.Ctx, []types.ManagedObjectReference{vm.Ref.Reference()}, []string{"guest"}, &vmMo)
+            if err != nil {
+                return err
+            }
+            if vmMo.Guest != nil && vmMo.Guest.ToolsRunningStatus == "guestToolsRunning" {
+                gom := guest.NewOperationsManager(vm.Client, vm.Ref.Reference())
+
+                procMan, err := gom.ProcessManager(*vm.Ctx)
+                if err != nil {
+                    return err
+                }
+
+                _, err = procMan.StartProgram(*vm.Ctx, &auth, &program)
+                if err != nil {
+                    if retries < 2 && strings.Contains(err.Error(), "Failed to authenticate") {
+                        retries++
+                        time.Sleep(time.Second * 20)
+                        continue
+                    }
+                    return err
+                }
+                return nil
+            }
+        }
+    }
+}
+
 func configureNIC(nic types.BaseVirtualDevice, pg types.ManagedObjectReference, dvsMo mo.DistributedVirtualSwitch) *types.VirtualDeviceConfigSpec {
     nic.GetVirtualDevice().Backing = &types.VirtualEthernetCardDistributedVirtualPortBackingInfo{
         Port: types.DistributedVirtualSwitchPortConnection{
@@ -167,3 +210,4 @@ func configureNIC(nic types.BaseVirtualDevice, pg types.ManagedObjectReference, 
     }
     return &deviceChange
 }
+
