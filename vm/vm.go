@@ -89,10 +89,12 @@ func (vm *VM) CloneVM(wg *sync.WaitGroup, spec *types.VirtualMachineCloneSpec, f
     vmObj := object.NewVirtualMachine(vm.Client, vm.Ref.Reference())
     task, err := vmObj.Clone(*vm.Ctx, folder, vm.Name, *spec)
     if err != nil {
+        fmt.Println(err)
         return err
     }
     err = task.Wait(*vm.Ctx)
     if err != nil {
+        fmt.Println(err)
         return err
     }
     return nil

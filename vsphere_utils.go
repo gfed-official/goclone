@@ -285,65 +285,6 @@ func GetRouter(srcRPRef types.ManagedObjectReference) (*mo.VirtualMachine, error
     return &routerMo, nil
 }
 
-func ConfigRouter(pg, wanPG types.ManagedObjectReference, router *mo.VirtualMachine, pgStr string) error {
-    templateObj := object.NewVirtualMachine(vSphereClient.client, router.Reference())
-    devices, err := templateObj.Device(vSphereClient.ctx)
-    if err != nil {
-        log.Println(errors.Wrap(err, "Error getting devices"))
-        return err
-    }
-
-    var deviceList []types.BaseVirtualDeviceConfigSpec
-    for _, device := range devices {
-        if device.GetVirtualDevice().DeviceInfo.GetDescription().Label == "Network adapter 1" {
-            deviceChange := ConfigureNIC(device, wanPG)
-            deviceList = append(deviceList, deviceChange)
-        }
-        if device.GetVirtualDevice().DeviceInfo.GetDescription().Label == "Network adapter 2" {
-            deviceChange := ConfigureNIC(device, pg)
-            deviceList = append(deviceList, deviceChange)
-        }
-    }
-
-    configSpec := types.VirtualMachineConfigSpec{
-        DeviceChange: deviceList,
-    }
-
-    _, err = templateObj.Reconfigure(vSphereClient.ctx, configSpec)
-    if err != nil {
-        log.Println(errors.Wrap(err, "Error reconfiguring router"))
-        return err
-    }
-
-    task, err := templateObj.PowerOn(vSphereClient.ctx)
-    if err != nil {
-        log.Println(errors.Wrap(err, "Error powering on router"))
-        return err
-    }
-
-    err = task.Wait(vSphereClient.ctx)
-    if err != nil {
-        log.Println(errors.Wrap(err, "Error waiting for task"))
-        return err
-    }
-
-    return nil
-}
-
-func ConfigureNIC(nic types.BaseVirtualDevice, pg types.ManagedObjectReference) *types.VirtualDeviceConfigSpec {
-    nic.GetVirtualDevice().Backing = &types.VirtualEthernetCardDistributedVirtualPortBackingInfo{
-        Port: types.DistributedVirtualSwitchPortConnection{
-            PortgroupKey: pg.Reference().Value,
-            SwitchUuid:   dvsMo.Uuid,
-        },
-    }
-    deviceChange := types.VirtualDeviceConfigSpec{
-        Operation: types.VirtualDeviceConfigSpecOperationEdit,
-        Device:    nic,
-    }
-    return &deviceChange
-}
-
 func DestroyFolder(folderObj *object.Folder) {
     vms, err := folderObj.Children(vSphereClient.ctx)
     if err != nil {
