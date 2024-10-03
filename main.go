@@ -220,7 +220,11 @@ func InitializeGovmomi() {
 
 	err = LoadTemplates()
 	if err != nil {
-		log.Fatalln(errors.Wrap(err, "Error loading templates"))
+        for key, template := range templateMap {
+            if template.Name == "" {
+                fmt.Println("Error loading template: ", key)
+            }
+        }
 	}
 
 	fmt.Fprintln(os.Stdout, []any{"Initialized"}...)

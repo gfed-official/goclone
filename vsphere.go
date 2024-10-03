@@ -613,8 +613,8 @@ func LoadTemplates() error {
 		}
 		template, err := LoadTemplate(rp, rpName)
 		if err != nil {
+            templateMap[rpName] = Template{}
 			log.Println(errors.Wrap(err, "Error loading template"))
-			return err
 		}
 		templateMap[rpName] = template
 	}
@@ -716,7 +716,6 @@ func LoadTemplate(rp *object.ResourcePool, name string) (Template, error) {
             GuestOS: v.Config.GuestFullName,
         }
         vmList = append(vmList, newVM)
-        fmt.Println(newVM.String())
 	}
 
     wg := errgroup.Group{}
