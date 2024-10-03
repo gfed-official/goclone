@@ -111,28 +111,37 @@ func (vm *VM) ConfigureVMNetwork(portGroup *types.ManagedObjectReference, dvsMo 
     return configSpec, nil
 }
 
-func (vm *VM) ConfigureRouterNetworks(wanPortGroup *types.ManagedObjectReference, lanPortGroup *types.ManagedObjectReference, dvsMo mo.DistributedVirtualSwitch) (types.VirtualMachineConfigSpec, error) {
+func (vm *VM) ConfigureRouterNetworks(wanPortGroup *object.DistributedVirtualPortgroup, lanPortGroup *object.DistributedVirtualPortgroup, dvsMo mo.DistributedVirtualSwitch) error {
     if !vm.IsRouter {
-        return types.VirtualMachineConfigSpec{}, errors.New("Cannot configure router networks for non-router")
+        return errors.New("Cannot configure router networks for non-router")
     }
 
     var configSpec types.VirtualMachineConfigSpec
     devices, err := vm.Ref.(*object.VirtualMachine).Device(*vm.Ctx)
     if err != nil {
-        return types.VirtualMachineConfigSpec{}, err
+        return nil
     }
     for _, device := range devices {
         if device.GetVirtualDevice().DeviceInfo.GetDescription().Label == "Network adapter 1" {
-            deviceChange := configureNIC(device, *wanPortGroup, dvsMo)
+            deviceChange := configureNIC(device, wanPortGroup.Reference(), dvsMo)
             configSpec = types.VirtualMachineConfigSpec{
                 DeviceChange: []types.BaseVirtualDeviceConfigSpec{deviceChange},
             }
         } else if device.GetVirtualDevice().DeviceInfo.GetDescription().Label == "Network adapter 2" {
-            deviceChange := configureNIC(device, *lanPortGroup, dvsMo)
+            deviceChange := configureNIC(device, lanPortGroup.Reference(), dvsMo)
             configSpec.DeviceChange = append(configSpec.DeviceChange, deviceChange)
         }
     }
-    return configSpec, nil
+
+    task, err := vm.Ref.(*object.VirtualMachine).Reconfigure(*vm.Ctx, configSpec)
+    if err != nil {
+        return err
+    }
+    err = task.Wait(*vm.Ctx)
+    if err != nil {
+        return err
+    }
+    return nil
 }
 
 func (vm *VM) GetGuestOS() string {

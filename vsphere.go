@@ -9,8 +9,8 @@ import (
 	"strings"
 	"sync"
 	"time"
-    
-    "goclone/vm"
+
+	"goclone/vm"
 
 	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
@@ -43,7 +43,6 @@ type Template struct {
 	CompetitionPod bool
 	AdminOnly      bool
 	WanPG          *object.DistributedVirtualPortgroup
-	VMsToHide      []*mo.VirtualMachine
 }
 
 var (
@@ -310,51 +309,28 @@ func TemplateClone(sourceRP, username string, portGroup int) error {
 		return err
 	}
 
-	var vmClonesMo []mo.VirtualMachine
-	var router *mo.VirtualMachine
-	for _, vm := range vmClones {
-		vmObj := object.NewVirtualMachine(vSphereClient.client, vm.Reference())
-		var vm mo.VirtualMachine
+	var vms []vm.VM
+    var router vm.VM
+	for _, v := range vmClones {
+		vmObj := object.NewVirtualMachine(vSphereClient.client, v.Reference())
+        vmName, err := vmObj.ObjectName(vSphereClient.ctx)
+        if err != nil {
+            log.Println(errors.Wrap(err, "Error getting VM name"))
+            return err
+        }
 
-		err = vmObj.Properties(vSphereClient.ctx, vmObj.Reference(), []string{"name"}, &vm)
-		if err != nil {
-			log.Println(errors.Wrap(err, "Error getting VM properties"))
-			return err
-		}
-		vmClonesMo = append(vmClonesMo, vm)
-		if strings.Contains(vm.Name, "PodRouter") {
-			router = &vm
-		}
-	}
+        isRouter := strings.Contains(vmName, "PodRouter")
+        newVM := vm.VM{
+            Name: vmName,
+            Ref: v.Reference(),
+            Ctx: &vSphereClient.ctx,
+            IsRouter: isRouter,
+        }
 
-	eg := errgroup.Group{}
-	if templateMap[sourceRP].CompetitionPod {
-		for _, vm := range vmClonesMo {
-			vm := vm
-			vmObj := object.NewVirtualMachine(vSphereClient.client, vm.Reference())
-			vmName, err := vmObj.ObjectName(vSphereClient.ctx)
-			if err != nil {
-				fmt.Println(errors.Wrap(err, "Error getting VM name"))
-				return err
-			}
-
-			originalName := strings.Split(vmName, "-")[1]
-			username := templateMap[sourceRP].VMUsername[originalName]
-			password := templateMap[sourceRP].VMPassword[originalName]
-			domain := templateMap[sourceRP].VMDomain[originalName]
-			if username == "" || password == "" {
-				continue
-			}
-
-			auth := types.NamePasswordAuthentication{
-				Username: username,
-				Password: password,
-			}
-
-			eg.Go(func() error {
-				return ChangeHostname(sourceRP, &vm, vmName, domain, auth)
-			})
-		}
+        if isRouter {
+            router = newVM
+        }
+        vms = append(vms, newVM)
 	}
 
 	var routerPG *object.DistributedVirtualPortgroup
@@ -365,11 +341,11 @@ func TemplateClone(sourceRP, username string, portGroup int) error {
 	}
 
 	if !templateMap[sourceRP].NoRouter {
-		err = ConfigRouter(pg.Reference(), routerPG.Reference(), router, pgStr)
-		if err != nil {
-			log.Println(errors.Wrap(err, "Error cloning router"))
-			return err
-		}
+        err := router.ConfigureRouterNetworks(pg.(*object.DistributedVirtualPortgroup), routerPG, dvsMo)
+        if err != nil {
+            log.Println(errors.Wrap(err, "Error configuring router networks"))
+            return err
+        }
 
 		if templateMap[sourceRP].Natted {
 			pgOctet, err := GetNatOctet(strconv.Itoa(portGroup))
@@ -403,12 +379,17 @@ func TemplateClone(sourceRP, username string, portGroup int) error {
 		}
 	}
 
-	if err := eg.Wait(); err != nil {
-		fmt.Println(err)
-		return err
-	}
+    wg := errgroup.Group{}
+    for _, vm := range vms {
+        wg.Go(func() error {
+            return vm.SetSnapshot("Base")
+        })
+    }
 
-	SnapshotVMs(vmClonesMo, "Base")
+    if err := wg.Wait(); err != nil {
+        return errors.Wrap(err, "Error setting snapshot")
+    }
+
 	permission := types.Permission{
 		Principal: strings.Join([]string{mainConfig.Domain, username}, "\\"),
 		RoleId:    cloneRole.RoleId,
@@ -416,7 +397,14 @@ func TemplateClone(sourceRP, username string, portGroup int) error {
 	}
 	AssignPermissionToObjects(&permission, []types.ManagedObjectReference{newFolder.Reference()})
 
-	HideVMs(templateMap[sourceRP].VMsToHide, vmClonesMo, username)
+    hiddenVMs := []vm.VM{}
+    for _, vm := range templateMap[sourceRP].VMs {
+        if vm.IsHidden {
+            hiddenVMs = append(hiddenVMs, vm)
+        }
+    }
+
+	HideVMs(hiddenVMs, username)
 
 	return nil
 }
@@ -427,47 +415,55 @@ func CustomClone(podName string, vmsToClone []string, natted bool, username stri
 		log.Println(errors.Wrap(err, "Error initializing clone"))
 		return err
 	}
-	var vms []mo.VirtualMachine
-	for _, vm := range vmsToClone {
-		vmObj, err := finder.VirtualMachine(vSphereClient.ctx, vm)
+
+	var vms []vm.VM
+	for _, v := range vmsToClone {
+		vmObj, err := finder.VirtualMachine(vSphereClient.ctx, v)
 		if err != nil {
 			log.Println(errors.Wrap(err, "Error finding VM"))
 			return err
 		}
-		var vmMo mo.VirtualMachine
-		err = vmObj.Properties(vSphereClient.ctx, vmObj.Reference(), []string{"name"}, &vmMo)
-		if err != nil {
-			log.Println(errors.Wrap(err, "Error getting VM properties"))
-			return err
-		}
-		vms = append(vms, vmMo)
+        vmName, err := vmObj.ObjectName(vSphereClient.ctx)
+        if err != nil {
+            log.Println(errors.Wrap(err, "Error getting VM name"))
+            return err
+        }
+
+        newVM := vm.VM{
+            Name: vmName,
+            Ref: vmObj.Reference(),
+            Ctx: &vSphereClient.ctx,
+            IsRouter: strings.Contains(vmName, "PodRouter"),
+        }
+		vms = append(vms, newVM)
 	}
 
 	pgStr := strconv.Itoa(portGroup)
 	CloneVMsFromTemplates(vms, newFolder, targetRP.Reference(), datastore.Reference(), pg.Reference(), pgStr)
 
-	router, err := CreateRouter(targetRP.Reference(), datastore.Reference(), newFolder, natted, podName)
-	vms = append(vms, *router)
+    hasRouter := false
+    for _, vm := range vms {
+        if vm.IsRouter {
+            hasRouter = true
+            break
+        }
+    }
 
-	vmClones, err := newFolder.Children(vSphereClient.ctx)
-	if err != nil {
-		log.Println(errors.Wrap(err, "Error getting children"))
-		return err
-	}
-
-	var vmClonesMo []mo.VirtualMachine
-	for _, vm := range vmClones {
-		vmObj := object.NewVirtualMachine(vSphereClient.client, vm.Reference())
-		var vm mo.VirtualMachine
-		err = vmObj.Properties(vSphereClient.ctx, vmObj.Reference(), []string{"name"}, &vm)
-		vmClonesMo = append(vmClonesMo, vm)
-	}
-
-	err = ConfigRouter(pg.Reference(), wanPG.Reference(), router, pgStr)
-	if err != nil {
-		log.Println(errors.Wrap(err, "Error cloning router"))
-		return err
-	}
+    router := vm.VM{}
+    if !hasRouter && natted {
+        router, err := CreateRouter(targetRP.Reference(), datastore.Reference(), newFolder, natted, podName)
+        if err != nil {
+            log.Println(errors.Wrap(err, "Error creating router"))
+            return err
+        }
+        newVM := vm.VM{
+            Name: router.Name,
+            Ref: router.Reference(),
+            Ctx: &vSphereClient.ctx,
+            IsRouter: true,
+        }
+        vms = append(vms, newVM)
+    }
 
 	if natted {
 		pgOctet, err := GetNatOctet(strconv.Itoa(portGroup))
@@ -494,7 +490,17 @@ func CustomClone(podName string, vmsToClone []string, natted bool, username stri
 			return err
 		}
 	}
-	SnapshotVMs(vmClonesMo, "Base")
+
+    wg := errgroup.Group{}
+    for _, vm := range vms {
+        wg.Go(func() error {
+            return vm.SetSnapshot("Base")
+        })
+    }
+
+    if err := wg.Wait(); err != nil {
+        return errors.Wrap(err, "Error setting snapshot")
+    }
 
 	permission := types.Permission{
 		Principal: strings.Join([]string{mainConfig.Domain, username}, "\\"),
@@ -710,12 +716,6 @@ func LoadTemplate(rp *object.ResourcePool, name string) (Template, error) {
 		return Template{}, err
 	}
 
-	vmsToHide, err := GetVMsToHide(vms)
-	if err != nil {
-		log.Println(errors.Wrap(err, "Error getting VMs to hide"))
-		return Template{}, err
-	}
-
 	template := Template{
 		Name:           name,
 		SourceRP:       rp,
@@ -725,7 +725,6 @@ func LoadTemplate(rp *object.ResourcePool, name string) (Template, error) {
 		CompetitionPod: competitionPod,
 		NoRouter:       noRouter,
 		WanPG:          pg,
-		VMsToHide:      vmsToHide,
 	}
 
 	return template, nil
