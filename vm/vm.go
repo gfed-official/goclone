@@ -29,8 +29,8 @@ func (vm *VM) String() string {
 }
 
 func (vm *VM) PowerOn() error {
-    fmt.Println("Powering on VM")
-    task, err := vm.Ref.(*object.VirtualMachine).PowerOn(*vm.Ctx)
+    vmObj := object.NewVirtualMachine(vm.Client, vm.Ref.Reference())
+    task, err := vmObj.PowerOn(*vm.Ctx)
     if err != nil {
         return err
     }
@@ -42,7 +42,8 @@ func (vm *VM) PowerOn() error {
 }
 
 func (vm *VM) PowerOff() error {
-    task, err := vm.Ref.(*object.VirtualMachine).PowerOff(*vm.Ctx)
+    vmObj := object.NewVirtualMachine(vm.Client, vm.Ref.Reference())
+    task, err := vmObj.PowerOff(*vm.Ctx)
     if err != nil {
         return err
     }
@@ -54,7 +55,8 @@ func (vm *VM) PowerOff() error {
 }
 
 func (vm *VM) SetSnapshot(name string) error {
-    task, err := vm.Ref.(*object.VirtualMachine).CreateSnapshot(*vm.Ctx, name, "", false, false)
+    vmObj := object.NewVirtualMachine(vm.Client, vm.Ref.Reference())
+    task, err := vmObj.CreateSnapshot(*vm.Ctx, name, "", false, false)
     if err != nil {
         return err
     }
@@ -66,8 +68,8 @@ func (vm *VM) SetSnapshot(name string) error {
 }
 
 func (vm *VM) RevertSnapshot(name string) error {
-    fmt.Println("Reverting snapshot")
-    task, err := vm.Ref.(*object.VirtualMachine).RevertToSnapshot(*vm.Ctx, name, true)
+    vmObj := object.NewVirtualMachine(vm.Client, vm.Ref.Reference())
+    task, err := vmObj.RevertToSnapshot(*vm.Ctx, name, true)
     if err != nil {
         return err
     }
@@ -80,8 +82,8 @@ func (vm *VM) RevertSnapshot(name string) error {
 
 func (vm *VM) CloneVM(wg *sync.WaitGroup, spec *types.VirtualMachineCloneSpec, folder *object.Folder) error {
     defer wg.Done()
-    fmt.Println("Cloning VM")
-    task, err := vm.Ref.(*object.VirtualMachine).Clone(*vm.Ctx, folder, vm.Name, *spec)
+    vmObj := object.NewVirtualMachine(vm.Client, vm.Ref.Reference())
+    task, err := vmObj.Clone(*vm.Ctx, folder, vm.Name, *spec)
     if err != nil {
         return err
     }
@@ -120,7 +122,8 @@ func (vm *VM) ConfigureRouterNetworks(wanPortGroup *object.DistributedVirtualPor
     }
 
     var configSpec types.VirtualMachineConfigSpec
-    devices, err := vm.Ref.(*object.VirtualMachine).Device(*vm.Ctx)
+    vmObj := object.NewVirtualMachine(vm.Client, vm.Ref.Reference())
+    devices, err := vmObj.Device(*vm.Ctx)
     if err != nil {
         return nil
     }
@@ -136,7 +139,7 @@ func (vm *VM) ConfigureRouterNetworks(wanPortGroup *object.DistributedVirtualPor
         }
     }
 
-    task, err := vm.Ref.(*object.VirtualMachine).Reconfigure(*vm.Ctx, configSpec)
+    task, err := vmObj.Reconfigure(*vm.Ctx, configSpec)
     if err != nil {
         return err
     }
