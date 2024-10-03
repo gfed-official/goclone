@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"goclone/vm"
 	"log"
 	"strings"
 	"sync"
@@ -221,8 +222,8 @@ func GetSnapshot(vms []mo.VirtualMachine, name string) []*object.VirtualMachine 
 	return vmsWithoutSnapshot
 }
 
-func GetSnapshotRef(vm mo.VirtualMachine, name string) types.ManagedObjectReference {
-	vmObj := object.NewVirtualMachine(vSphereClient.client, vm.Reference())
+func GetSnapshotRef(vm vm.VM, name string) types.ManagedObjectReference {
+	vmObj := object.NewVirtualMachine(vSphereClient.client, vm.Ref.Reference())
 	snapshot, err := vmObj.FindSnapshot(vSphereClient.ctx, name)
 	if err != nil {
 		log.Println(errors.Wrap(err, "Failed to find snapshot"))
@@ -232,11 +233,11 @@ func GetSnapshotRef(vm mo.VirtualMachine, name string) types.ManagedObjectRefere
 	return snapshot.Reference()
 }
 
-func CloneVMs(vms []mo.VirtualMachine, folder *object.Folder, resourcePool, ds, pg types.ManagedObjectReference, pgNum string) {
+func CloneVMs(vms []vm.VM, folder *object.Folder, resourcePool, ds, pg types.ManagedObjectReference, pgNum string) {
 	var wg sync.WaitGroup
 	for _, vm := range vms {
 		var configSpec types.VirtualMachineConfigSpec
-		vmObj := object.NewVirtualMachine(vSphereClient.client, vm.Reference())
+		vmObj := object.NewVirtualMachine(vSphereClient.client, vm.Ref.Reference())
 
 		configSpec, err := ConfigureVMNetwork(vmObj, pg)
 		if err != nil {
@@ -257,7 +258,7 @@ func CloneVMs(vms []mo.VirtualMachine, folder *object.Folder, resourcePool, ds, 
 		vm.Name = strings.Join([]string{pgNum, vm.Name}, "-")
 		folderObj := object.NewFolder(vSphereClient.client, folder.Reference())
 		wg.Add(1)
-		go CloneVM(&wg, vm, *folderObj, spec)
+		go vm.CloneVM(&wg, &spec, folderObj)
 	}
 	wg.Wait()
 }
