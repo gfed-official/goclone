@@ -303,6 +303,7 @@ func TemplateClone(sourceRP, username string, portGroup int) error {
 	pgStr := strconv.Itoa(portGroup)
 	CloneVMs(templateMap[sourceRP].VMs, newFolder, targetRP.Reference(), datastore.Reference(), pg.Reference(), pgStr)
 
+    fmt.Println("DEBUG 1")
 	vmClones, err := newFolder.Children(vSphereClient.ctx)
 	if err != nil {
 		log.Println(errors.Wrap(err, "Error getting children"))
@@ -333,6 +334,7 @@ func TemplateClone(sourceRP, username string, portGroup int) error {
         }
         vms = append(vms, newVM)
 	}
+    fmt.Println("DEBUG 2")
 
 	var routerPG *object.DistributedVirtualPortgroup
 	if templateMap[sourceRP].CompetitionPod {
@@ -342,7 +344,13 @@ func TemplateClone(sourceRP, username string, portGroup int) error {
 	}
 
 	if !templateMap[sourceRP].NoRouter {
-        err := router.ConfigureRouterNetworks(pg.(*object.DistributedVirtualPortgroup), routerPG, dvsMo)
+        err := router.PowerOn()
+        if err != nil {
+            log.Println(errors.Wrap(err, "Error powering on router"))
+            return err
+        }
+
+        err = router.ConfigureRouterNetworks(pg.(*object.DistributedVirtualPortgroup), routerPG, dvsMo)
         if err != nil {
             log.Println(errors.Wrap(err, "Error configuring router networks"))
             return err
