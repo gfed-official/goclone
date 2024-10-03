@@ -483,7 +483,7 @@ func RunProgramOnVM(vm vm.VM, program types.GuestProgramSpec, auth types.NamePas
             return errors.New("Timeout waiting for VM to be ready")
         case <-ticker:
             vmMo := mo.VirtualMachine{}
-            err := pc.Retrieve(vSphereClient.ctx, []types.ManagedObjectReference{vm.Ref.Reference()}, []string{"guest"}, vmMo)
+            err := pc.Retrieve(vSphereClient.ctx, []types.ManagedObjectReference{vm.Ref.Reference()}, []string{"guest"}, &vmMo)
             if err != nil {
                 log.Println(errors.Wrap(err, "Error retrieving router"))
                 return err
