@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"github.com/vmware/govmomi/object"
+	"github.com/vmware/govmomi/vim25"
 	"github.com/vmware/govmomi/vim25/mo"
 	"github.com/vmware/govmomi/vim25/types"
 )
@@ -17,6 +18,7 @@ type VM struct {
     Username string
     Password string
     Ctx *context.Context
+    Client *vim25.Client
     IsRouter bool
     IsHidden bool
     GuestOS string
@@ -96,7 +98,8 @@ func (vm *VM) ConfigureVMNetwork(portGroup *types.ManagedObjectReference, dvsMo 
     }
 
     var configSpec types.VirtualMachineConfigSpec
-    devices, err := vm.Ref.(*object.VirtualMachine).Device(*vm.Ctx)
+    vmObj := object.NewVirtualMachine(vm.Client, vm.Ref.(*mo.VirtualMachine).Reference())
+    devices, err := vmObj.Device(*vm.Ctx)
     if err != nil {
         return types.VirtualMachineConfigSpec{}, err
     }

@@ -324,6 +324,7 @@ func TemplateClone(sourceRP, username string, portGroup int) error {
             Name: vmName,
             Ref: v.Reference(),
             Ctx: &vSphereClient.ctx,
+            Client: vSphereClient.client,
             IsRouter: isRouter,
         }
 
@@ -433,6 +434,7 @@ func CustomClone(podName string, vmsToClone []string, natted bool, username stri
             Name: vmName,
             Ref: vmObj.Reference(),
             Ctx: &vSphereClient.ctx,
+            Client: vSphereClient.client,
             IsRouter: strings.Contains(vmName, "PodRouter"),
         }
 		vms = append(vms, newVM)
@@ -460,6 +462,7 @@ func CustomClone(podName string, vmsToClone []string, natted bool, username stri
             Name: router.Name,
             Ref: router.Reference(),
             Ctx: &vSphereClient.ctx,
+            Client: vSphereClient.client, 
             IsRouter: true,
         }
         vms = append(vms, newVM)
@@ -699,6 +702,7 @@ func LoadTemplate(rp *object.ResourcePool, name string) (Template, error) {
             Name: vmName,
             Ref: v.Reference(),
             Ctx: &vSphereClient.ctx,
+            Client: vSphereClient.client,
             Username: username,
             Password: password,
             IsRouter: strings.Contains(vmName, "PodRouter"),
