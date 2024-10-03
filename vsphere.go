@@ -722,11 +722,10 @@ func LoadTemplate(rp *object.ResourcePool, name string) (Template, error) {
     for _, vm := range vmList {
         wg.Go(func() error {
             vmObj := object.NewVirtualMachine(vSphereClient.client, vm.Ref.Reference())
-            if snap, _ := vmObj.FindSnapshot(vSphereClient.ctx, "SnapshotForCloning"); snap != nil {
-                return errors.New("Snapshot already exists")
-            } else {
+            if snap, _ := vmObj.FindSnapshot(vSphereClient.ctx, "SnapshotForCloning"); snap == nil {
                 return vm.SetSnapshot("SnapshotForCloning")
             }
+            return nil
         },)
     }
 
