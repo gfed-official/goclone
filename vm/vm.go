@@ -98,7 +98,7 @@ func (vm *VM) ConfigureVMNetwork(portGroup *types.ManagedObjectReference, dvsMo 
     }
 
     var configSpec types.VirtualMachineConfigSpec
-    vmObj := object.NewVirtualMachine(vm.Client, vm.Ref.(*mo.VirtualMachine).Reference())
+    vmObj := object.NewVirtualMachine(vm.Client, vm.Ref.Reference())
     devices, err := vmObj.Device(*vm.Ctx)
     if err != nil {
         return types.VirtualMachineConfigSpec{}, err
