@@ -524,9 +524,9 @@ func CustomClone(podName string, vmsToClone []string, natted bool, username stri
 func InitializeClone(podName, username string, portGroup int) (*types.ManagedObjectReference, object.NetworkReference, *object.Folder, error) {
 	strPortGroup := strconv.Itoa(int(portGroup))
 	pgName := strings.Join([]string{strPortGroup, vCenterConfig.PortGroupSuffix}, "_")
-	tagName := strings.Join([]string{strPortGroup, podName, username}, "_")
+	podID := strings.Join([]string{strPortGroup, podName, username}, "_")
 
-	targetRP, err := CreateResourcePool(tagName, templateMap[podName].CompetitionPod)
+	targetRP, err := CreateResourcePool(podID, templateMap[podName].CompetitionPod)
 	if err != nil {
 		log.Println(errors.Wrap(err, "Error creating resource pool"))
 		return &types.ManagedObjectReference{}, &object.Network{}, &object.Folder{}, err
@@ -538,7 +538,7 @@ func InitializeClone(podName, username string, portGroup int) (*types.ManagedObj
 		return &types.ManagedObjectReference{}, &object.Network{}, &object.Folder{}, err
 	}
 
-	newFolder, err := CreateVMFolder(tagName)
+	newFolder, err := CreateVMFolder(podID)
 	if err != nil {
 		log.Println(errors.Wrap(err, "Error creating VM folder"))
 		return &types.ManagedObjectReference{}, &object.Network{}, &object.Folder{}, err
