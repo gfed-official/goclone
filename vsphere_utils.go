@@ -703,52 +703,6 @@ func GetVMsOfPods(pods []*object.ResourcePool) ([]*object.VirtualMachine, error)
 	return vms, nil
 }
 
-func ChangeHostname(template string, vm *mo.VirtualMachine, hostname, domain string, auth types.NamePasswordAuthentication) error {
-	vmObj := object.NewVirtualMachine(vSphereClient.client, vm.Reference())
-	originalName := strings.Split(vm.Name, "-")[1]
-
-	task, err := vmObj.PowerOn(vSphereClient.ctx)
-	if err != nil {
-		fmt.Println(errors.Wrap(err, "Error powering on VM"))
-		return err
-	}
-
-	err = task.Wait(vSphereClient.ctx)
-	if err != nil {
-		fmt.Println(errors.Wrap(err, "Error waiting for task"))
-		return err
-	}
-
-	_, err = vmObj.WaitForIP(vSphereClient.ctx)
-	if err != nil {
-		fmt.Println(errors.Wrap(err, "Error waiting for IP"))
-		return err
-	}
-
-	var program types.GuestProgramSpec
-	if strings.Contains(templateMap[template].VMGuestOS[originalName], "windows") {
-		program = types.GuestProgramSpec{
-			ProgramPath: "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
-			Arguments:   strings.Join([]string{"-C", "Rename-Computer -NewName", hostname, "-Force -Restart"}, " "),
-		}
-	} else {
-		if domain != "" {
-			hostname = strings.Join([]string{hostname, domain}, ".")
-		}
-		program = types.GuestProgramSpec{
-			ProgramPath: "/bin/echo",
-			Arguments:   strings.Join([]string{"-n", hostname, ">", "/etc/hostname"}, " "),
-		}
-	}
-	err = RunProgramOnVM(vm, program, auth)
-	if err != nil {
-		fmt.Println(errors.Wrap(err, "Error running program on VM"))
-		return err
-	}
-
-	return nil
-}
-
 func GetAttribute(ref types.ManagedObjectReference, key string) (string, error) {
 	keyID, err := customFieldsManager.FindKey(vSphereClient.ctx, key)
 	if err != nil {

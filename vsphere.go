@@ -9,6 +9,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+    
+    "goclone/vm"
 
 	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
@@ -34,7 +36,7 @@ type Pod struct {
 type Template struct {
 	Name           string
 	SourceRP       *object.ResourcePool
-	VMs            []mo.VirtualMachine
+	VMs            []vm.VM
 	VMObjects      []object.VirtualMachine
 	Natted         bool
 	NoRouter       bool
@@ -42,11 +44,6 @@ type Template struct {
 	AdminOnly      bool
 	WanPG          *object.DistributedVirtualPortgroup
 	VMsToHide      []*mo.VirtualMachine
-	VMAddresses    map[string]string
-	VMGuestOS      map[string]string
-	VMUsername     map[string]string
-	VMPassword     map[string]string
-	VMDomain       map[string]string
 }
 
 var (
@@ -649,43 +646,6 @@ func LoadTemplate(rp *object.ResourcePool, name string) (Template, error) {
 		return Template{}, err
 	}
 
-	guestOSMap, err := GetVMGuestOS(vms)
-	if err != nil {
-		log.Println(errors.Wrap(err, "Error getting VM guest OS"))
-		return Template{}, err
-	}
-
-	usernameMap := make(map[string]string)
-	passwordMap := make(map[string]string)
-	domainMap := make(map[string]string)
-	for _, vm := range vms {
-		vmObj := object.NewVirtualMachine(vSphereClient.client, vm.Reference())
-		vmName, err := vmObj.ObjectName(vSphereClient.ctx)
-		if err != nil {
-			fmt.Println(errors.Wrap(err, "Error getting VM name"))
-			return Template{}, err
-		}
-		username, err := GetAttribute(vm.Reference(), "goclone.vm.username")
-		if err != nil {
-			fmt.Println(errors.Wrap(err, "Error getting VM username"))
-			usernameMap[vmName] = ""
-			passwordMap[vmName] = ""
-			domainMap[vmName] = ""
-			continue
-		}
-		password, err := GetAttribute(vm.Reference(), "goclone.vm.password")
-		if err != nil {
-			fmt.Println(errors.Wrap(err, "Error getting VM password"))
-			usernameMap[vmName] = ""
-			passwordMap[vmName] = ""
-			domainMap[vmName] = ""
-			continue
-		}
-		usernameMap[vmName] = username
-		passwordMap[vmName] = password
-		domainMap[vmName] = ""
-	}
-
 	var router *mo.VirtualMachine
 	if !noRouter {
 		if !slices.ContainsFunc(vms, func(vm mo.VirtualMachine) bool {
@@ -700,6 +660,49 @@ func LoadTemplate(rp *object.ResourcePool, name string) (Template, error) {
 			vms = append(vms, *router)
 		}
 	}
+
+    vmList := []vm.VM{}
+	if err != nil {
+		log.Println(errors.Wrap(err, "Error getting VM guest OS"))
+		return Template{}, err
+	}
+
+	for _, v := range vms {
+		vmObj := object.NewVirtualMachine(vSphereClient.client, v.Reference())
+		vmName, err := vmObj.ObjectName(vSphereClient.ctx)
+		if err != nil {
+			fmt.Println(errors.Wrap(err, "Error getting VM name"))
+			return Template{}, err
+		}
+
+        username := ""
+        password := ""
+        isHidden := ""
+        attrs, err := GetAllAttributes(v.Reference())
+        for key, value := range attrs {
+            switch key {
+            case "goclone.vm.username":
+                username = value
+            case "goclone.vm.password":
+                password = value
+            case "goclone.vm.isHidden":
+                isHidden = value
+            }
+        }
+        newVM := vm.VM{
+            Name: vmName,
+            Ref: v.Reference(),
+            Ctx: &vSphereClient.ctx,
+            Username: username,
+            Password: password,
+            IsRouter: strings.Contains(vmName, "PodRouter"),
+            IsHidden: strings.Contains(strings.ToLower(isHidden), "true"),
+            GuestOS: v.Config.GuestFullName,
+        }
+        vmList = append(vmList, newVM)
+        fmt.Println(newVM.String())
+	}
+
 
 	err = CreateSnapshot(vms, "SnapshotForCloning")
 	if err != nil {
@@ -716,17 +719,13 @@ func LoadTemplate(rp *object.ResourcePool, name string) (Template, error) {
 	template := Template{
 		Name:           name,
 		SourceRP:       rp,
-		VMs:            vms,
+		VMs:            vmList,
 		Natted:         natted,
 		AdminOnly:      adminOnly,
 		CompetitionPod: competitionPod,
 		NoRouter:       noRouter,
 		WanPG:          pg,
 		VMsToHide:      vmsToHide,
-		VMGuestOS:      guestOSMap,
-		VMUsername:     usernameMap,
-		VMPassword:     passwordMap,
-		VMDomain:       domainMap,
 	}
 
 	return template, nil
