@@ -316,6 +316,9 @@ func DestroyFolder(folderObj *object.Folder) {
 }
 
 func DestroyResourcePool(rpObj *object.ResourcePool) {
+
+    rpObj.DestroyChildren(vSphereClient.ctx)
+
     task, err := rpObj.Destroy(vSphereClient.ctx)
     if err != nil {
         log.Println(errors.Wrap(err, "Error destroying resource pool"))
