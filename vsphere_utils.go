@@ -292,8 +292,7 @@ func DestroyFolder(folderObj *object.Folder) {
     }
 
     for _, vm := range vms {
-        vmObj := object.NewVirtualMachine(vSphereClient.client, vm.Reference())
-        task, err := vmObj.PowerOff(vSphereClient.ctx)
+        task, err := vm.(*object.VirtualMachine).PowerOff(vSphereClient.ctx)
         if err != nil {
             log.Println(errors.Wrap(err, "Error destroying VM"))
         }
