@@ -301,23 +301,20 @@ func DestroyFolder(folderObj *object.Folder) {
         if err != nil {
             log.Println(errors.Wrap(err, "Error waiting for task"))
         }
+    }
 
-        task, err = folderObj.Destroy(vSphereClient.ctx)
-        if err != nil {
-            log.Println(errors.Wrap(err, "Error destroying folder"))
-        }
+    task, err := folderObj.Destroy(vSphereClient.ctx)
+    if err != nil {
+        log.Println(errors.Wrap(err, "Error destroying folder"))
+    }
 
-        err = task.Wait(vSphereClient.ctx)
-        if err != nil {
-            log.Println(errors.Wrap(err, "Error waiting for task"))
-        }
+    err = task.Wait(vSphereClient.ctx)
+    if err != nil {
+        log.Println(errors.Wrap(err, "Error waiting for task"))
     }
 }
 
 func DestroyResourcePool(rpObj *object.ResourcePool) {
-
-    rpObj.DestroyChildren(vSphereClient.ctx)
-
     task, err := rpObj.Destroy(vSphereClient.ctx)
     if err != nil {
         log.Println(errors.Wrap(err, "Error destroying resource pool"))
