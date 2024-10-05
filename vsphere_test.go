@@ -7,7 +7,11 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestGetVM(t *testing.T) {
-    fmt.Println("TestGetVM")
-    assert.Equal(t, "testvm", fmt.Sprintf("%s", "testvm"))
+func TestPods(t *testing.T) {
+    pods, err := GetAllPods()
+    if err != nil {
+        t.Error(err)
+    }
+    assert.NotEmpty(t, pods)
+    fmt.Println(pods)
 }
