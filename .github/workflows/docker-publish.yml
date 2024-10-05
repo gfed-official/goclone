@@ -40,6 +40,8 @@ jobs:
 
 
   build:
+    if: ${{ always() }}
+    needs: test
 
     runs-on: ubuntu-latest
     permissions:
