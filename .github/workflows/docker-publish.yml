@@ -18,7 +18,7 @@ env:
 
 jobs:
   test:
-    runs-on: self-hosted
+    runs-on: goclone
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
