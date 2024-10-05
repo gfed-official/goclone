@@ -1,4 +1,4 @@
-name: Docker
+name: Test and Build Goclone
 
 # This workflow uses actions that are not certified by GitHub.
 # They are provided by a third-party and are governed by
@@ -18,7 +18,7 @@ env:
 
 jobs:
   test:
-    runs-on: goclone
+    runs-on: [self-hosted]
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
