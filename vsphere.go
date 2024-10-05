@@ -348,7 +348,7 @@ func TemplateClone(sourceRP, username string, portGroup int) error {
             return err
         }
 
-        err = router.ConfigureRouterNetworks(pg.(*object.DistributedVirtualPortgroup), routerPG, dvsMo)
+        err = router.ConfigureRouterNetworks(routerPG, pg.(*object.DistributedVirtualPortgroup), dvsMo)
         if err != nil {
             log.Println(errors.Wrap(err, "Error configuring router networks"))
             return err
