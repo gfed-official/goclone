@@ -29,18 +29,19 @@ jobs:
           go-version: 1.22.3
 
       - name: Run tests
-        run: |
-          source .env
-          go mod tidy
-          go test -v ./...
+        shell: bash
         env:
           LDAP_BIND_PASSWORD: ${{ secrets.LDAP_BIND_PASSWORD }}
           VCENTER_PASSWORD: ${{ secrets.VCENTER_PASSWORD }}
           VCENTER_USERNAME: ${{ secrets.VCENTER_USERNAME }}
+        run: |
+          source .env
+          printenv
+          go mod tidy
+          go test -v ./...
 
 
   build:
-    if: ${{ always() }}
     needs: test
 
     runs-on: ubuntu-latest
