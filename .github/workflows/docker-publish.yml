@@ -29,6 +29,21 @@ jobs:
         with:
           go-version: 1.22.3
 
+      - name: Set up VCSIM
+        env:
+          GOVC_INSECURE: ${{ env.GOVC_INSECURE }}
+          GOVC_URL: ${{ env.GOVC_URL }}
+          GOVC_USERNAME: ${{ secrets.VCENTER_USERNAME }}
+          GOVC_PASSWORD: ${{ secrets.VCENTER_PASSWORD }}
+      - name: Run tests
+        working-directory: /vcsim
+        shell: bash
+        run: |
+          rm -rf ./*
+          govc object.save
+          export GOVC_URL="https://127.0.0.1:8989/sdk" 
+          nohup vcsim -load ./* &
+
       - name: Run tests
         shell: bash
         env:
