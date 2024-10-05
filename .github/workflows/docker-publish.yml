@@ -19,6 +19,7 @@ env:
 jobs:
   test:
     runs-on: [self-hosted]
+    environment: Goclone
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -30,10 +31,6 @@ jobs:
 
       - name: Run tests
         shell: bash
-        env:
-          LDAP_BIND_PASSWORD: ${{ secrets.LDAP_BIND_PASSWORD }}
-          VCENTER_PASSWORD: ${{ secrets.VCENTER_PASSWORD }}
-          VCENTER_USERNAME: ${{ secrets.VCENTER_USERNAME }}
         run: |
           source .env
           printenv
