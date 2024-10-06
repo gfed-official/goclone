@@ -171,11 +171,14 @@ func TestAdminGetPods(t *testing.T) {
 		},
 	})
 
+	pod := pods.Value("pods").Array().Value(0).Object()
+	podName := pod.Value("Name").String().Raw()
+
 	e.GET("/api/v1/admin/view/pods").
 		WithCookie(c.Raw().Name, c.Raw().Value).
 		Expect().
 		Status(http.StatusOK).
-		JSON().Object().ContainsKey("pods")
+		JSON().Array().Value(0).Object().ContainsKey("Name").HasValue("Name", podName)
 }
 
 func TestDeletePod(t *testing.T) {
@@ -191,9 +194,6 @@ func TestDeletePod(t *testing.T) {
 	})
 
 	pod := pods.Value("pods").Array().Value(0).Object()
-	for k, v := range pod.Raw() {
-		t.Logf("%s: %v", k, v)
-	}
 	podName := pod.Value("Name").String().Raw()
 
 	e.DELETE("/api/v1/pod/delete/"+podName).
