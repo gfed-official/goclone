@@ -18,13 +18,18 @@ var (
 func init() {
 	gin.SetMode(gin.TestMode)
 	router = gin.Default()
-	private := router.Group("/api/v1")
-	addPrivateRoutes(private)
-	public := router.Group("/api/v1")
-	addPublicRoutes(public)
+	router.MaxMultipartMemory = 8 << 20
 
 	session := sessions.Sessions("kamino", cookie.NewStore([]byte("kamino")))
 	router.Use(session)
+
+	private := router.Group("/api/v1")
+	private.Use(authRequired)
+	addPrivateRoutes(private)
+
+	public := router.Group("/api/v1")
+	addPublicRoutes(public)
+
 }
 
 func TestHealth(t *testing.T) {
@@ -65,9 +70,6 @@ func TestViewPresetTemplates(t *testing.T) {
 			"username": userName,
 			"password": password,
 		}).
-		WithHeaders(map[string]string{
-			"Content-Type": "application/json",
-		}).
 		Expect().
 		Status(http.StatusOK)
 
@@ -96,9 +98,6 @@ func TestViewCustomTemplates(t *testing.T) {
 		WithJSON(map[string]interface{}{
 			"username": userName,
 			"password": password,
-		}).
-		WithHeaders(map[string]string{
-			"Content-Type": "application/json",
 		}).
 		Expect().
 		Status(http.StatusOK)
