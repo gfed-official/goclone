@@ -42,6 +42,7 @@ jobs:
           govc object.save
           export GOVC_URL="https://127.0.0.1:8989/sdk" 
           vcsim -load ./* &
+          while ! nc -z -v 127.0.0.1 8989 >/dev/null 2>&1; do sleep 1; done
 
       - name: Run tests
         shell: bash
