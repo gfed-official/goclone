@@ -56,10 +56,13 @@ func TestViewPresetTemplates(t *testing.T) {
 	userName := os.Getenv("VCENTER_USERNAME")
 	password := os.Getenv("VCENTER_PASSWORD")
 
-	e.GET("/api/v1/login").
+	e.POST("/api/v1/login").
 		WithJSON(map[string]interface{}{
 			"username": userName,
 			"password": password,
+		}).
+		WithHeaders(map[string]string{
+			"Content-Type": "application/json",
 		}).
 		Expect().
 		Status(http.StatusOK)
@@ -85,10 +88,13 @@ func TestViewCustomTemplates(t *testing.T) {
 	userName := os.Getenv("VCENTER_USERNAME")
 	password := os.Getenv("VCENTER_PASSWORD")
 
-	e.GET("/api/v1/login").
+	e.POST("/api/v1/login").
 		WithJSON(map[string]interface{}{
 			"username": userName,
 			"password": password,
+		}).
+		WithHeaders(map[string]string{
+			"Content-Type": "application/json",
 		}).
 		Expect().
 		Status(http.StatusOK)
@@ -117,7 +123,7 @@ func TestTemplateClone(t *testing.T) {
 
 	e.POST("/api/v1/pod/clone/template").
 		WithJSON(map[string]interface{}{
-			"template": "template-1",
+			"template": "CPTC-Web",
 		}).
 		Expect().
 		Status(http.StatusOK)
