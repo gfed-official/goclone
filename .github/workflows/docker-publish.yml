@@ -29,6 +29,19 @@ jobs:
         with:
           go-version: 1.22.3
 
+      - name: Set up VCSIM
+        env:
+          GOVC_INSECURE: ${{ vars.GOVC_INSECURE }}
+          GOVC_URL: ${{ vars.GOVC_URL }}
+          GOVC_USERNAME: ${{ secrets.VCENTER_USERNAME }}
+          GOVC_PASSWORD: ${{ secrets.VCENTER_PASSWORD }}
+        working-directory: /vcsim
+        shell: bash
+        run: |
+          rm -rf ./*
+          govc object.save
+          vcsim -load ./* &
+          while ! nc -z -v 127.0.0.1 8989 >/dev/null 2>&1; do sleep 1; done
 
       - name: Run tests
         shell: bash
@@ -40,7 +53,6 @@ jobs:
           source .env
           go mod tidy
           go test -v ./...
-
 
   build:
     needs: test
