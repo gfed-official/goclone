@@ -33,7 +33,7 @@ func TestGetVMsInResourcePool(t *testing.T) {
         t.Error(err)
     }
 
-    vms := make([]mo.VirtualMachine, 0)
+    vms := []mo.VirtualMachine{}
     for _, rp := range childRPs {
         vms, _ := GetVMsInResourcePool(rp.Reference())
         if vms == nil {
