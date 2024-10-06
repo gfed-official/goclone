@@ -24,6 +24,7 @@ func init() {
 	router.Use(session)
 
 	private := router.Group("/api/v1")
+	private.Use(authRequired)
 	addPrivateRoutes(private)
 
 	public := router.Group("/api/v1")
@@ -64,16 +65,16 @@ func TestViewPresetTemplates(t *testing.T) {
 	userName := os.Getenv("VCENTER_USERNAME")
 	password := os.Getenv("VCENTER_PASSWORD")
 
-	e.POST("/api/v1/login").
+	cookie := e.POST("/api/v1/login").
 		WithJSON(map[string]interface{}{
 			"username": userName,
 			"password": password,
 		}).
 		Expect().
-		Status(http.StatusOK).
-		JSON().Object().HasValue("message", "Successfully logged in!")
+		Cookie("kamino")
 
 	e.GET("/api/v1/view/templates/preset").
+		WithCookie(cookie.Raw().Name, cookie.Raw().Value).
 		Expect().
 		Status(http.StatusOK).
 		JSON().Object().ContainsKey("templates")
