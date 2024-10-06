@@ -9,21 +9,14 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-var (
-	router *gin.Engine
-)
-
 func init() {
 	gin.SetMode(gin.TestMode)
-	router = gin.Default()
-	private := router.Group("/api/v1")
-	addPrivateRoutes(private)
-	public := router.Group("/api/v1")
-	addPublicRoutes(public)
-	initCookies(router)
 }
 
 func TestHealth(t *testing.T) {
+	router := gin.Default()
+	public := router.Group("/api/v1")
+	public.GET("/health", health)
 	e := httpexpect.WithConfig(httpexpect.Config{
 		Client: &http.Client{
 			Transport: httpexpect.NewBinder(router),
@@ -42,6 +35,13 @@ func TestHealth(t *testing.T) {
 }
 
 func TestViewPresetTemplates(t *testing.T) {
+	router := gin.Default()
+	private := router.Group("/api/v1")
+	addPrivateRoutes(private)
+	public := router.Group("/api/v1")
+	addPublicRoutes(public)
+	initCookies(router)
+
 	e := httpexpect.WithConfig(httpexpect.Config{
 		Client: &http.Client{
 			Transport: httpexpect.NewBinder(router),
@@ -74,6 +74,12 @@ func TestViewPresetTemplates(t *testing.T) {
 }
 
 func TestViewCustomTemplates(t *testing.T) {
+	router := gin.Default()
+	private := router.Group("/api/v1")
+	addPrivateRoutes(private)
+	public := router.Group("/api/v1")
+	addPublicRoutes(public)
+	initCookies(router)
 	e := httpexpect.WithConfig(httpexpect.Config{
 		Client: &http.Client{
 			Transport: httpexpect.NewBinder(router),
@@ -109,6 +115,9 @@ func TestTemplateClone(t *testing.T) {
 	router := gin.Default()
 	private := router.Group("/api/v1")
 	addPrivateRoutes(private)
+	public := router.Group("/api/v1")
+	addPublicRoutes(public)
+	initCookies(router)
 
 	e := httpexpect.WithConfig(httpexpect.Config{
 		Client: &http.Client{
