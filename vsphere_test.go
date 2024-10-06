@@ -14,7 +14,6 @@ import (
 var (
 	router *gin.Engine
 	c      *httpexpect.Cookie
-	e      *httpexpect.Expect
 )
 
 func init() {
@@ -35,6 +34,16 @@ func init() {
 }
 
 func TestHealth(t *testing.T) {
+	e := httpexpect.WithConfig(httpexpect.Config{
+		Client: &http.Client{
+			Transport: httpexpect.NewBinder(router),
+			Jar:       httpexpect.NewCookieJar(),
+		},
+		Reporter: httpexpect.NewAssertReporter(t),
+		Printers: []httpexpect.Printer{
+			httpexpect.NewDebugPrinter(t, true),
+		},
+	})
 
 	e.GET("/api/v1/health").
 		Expect().
