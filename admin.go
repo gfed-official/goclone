@@ -22,21 +22,21 @@ func adminGetAllPods(c *gin.Context) {
         return
     }
 
-    var _pods []Pod
+    var res []Pod
     for _, pod := range pods {
         podName, err := pod.ObjectName(vSphereClient.ctx)
         if err != nil {
             c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
             return
         }
-        _pods = append(_pods, Pod{
+        res = append(res, Pod{
             Name:          podName,
             ResourceGroup: pod.Reference().Value,
             ServerGUID:    pod.Reference().ServerGUID,
         })
     }
 
-    c.JSON(http.StatusOK, _pods)
+    c.JSON(http.StatusOK, res)
 }
 
 func adminDeletePod(c *gin.Context) {
