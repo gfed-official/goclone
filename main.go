@@ -82,24 +82,24 @@ func init() {
 	}
 
 	InitializeGovmomi()
-    err = vSphereLoadTakenPortGroups()
+	err = vSphereLoadTakenPortGroups()
 	if err != nil {
 		log.Fatalln(errors.Wrap(err, "Error finding taken port groups"))
 	}
-}
 
-func main() {
-    err := LoadTemplates()
+	err = LoadTemplates()
 	if err != nil {
-        for key, template := range templateMap {
-            if template.Name == "" {
-                fmt.Println("Error loading template: ", key)
-            }
-        }
+		for key, template := range templateMap {
+			if template.Name == "" {
+				fmt.Println("Error loading template: ", key)
+			}
+		}
 	}
 
 	fmt.Fprintln(os.Stdout, []any{"Initialized"}...)
+}
 
+func main() {
 	go refreshSession()
 
 	//setup logging
