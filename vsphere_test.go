@@ -35,7 +35,10 @@ func TestGetVMsInResourcePool(t *testing.T) {
 
     vms := []mo.VirtualMachine{}
     for _, rp := range childRPs {
-        vms, _ := GetVMsInResourcePool(rp.Reference())
+        vms, err := GetVMsInResourcePool(rp.Reference())
+        if err != nil {
+            t.Error(err)
+        }
         if vms == nil {
             continue
         }
@@ -65,7 +68,7 @@ func TestVMObjects(t *testing.T) {
             Ctx: &vSphereClient.ctx,
             IsRouter: false,
             IsHidden: false,
-            GuestOS: "Ubuntu 22.04",
+            GuestOS: "Test",
         }
 
         resString := fmt.Sprintf("VM: %s\nUsername: %s\nPassword: %s\nIs Router: %v\nIs Hidden: %v\nGuest OS: %s\n", newVM.Name, newVM.Username, newVM.Password, newVM.IsRouter, newVM.IsHidden, newVM.GuestOS)
