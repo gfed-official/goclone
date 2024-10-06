@@ -2,6 +2,7 @@ package main
 
 import (
 	"net/http"
+	"os"
 	"testing"
 
 	"github.com/gavv/httpexpect/v2"
@@ -37,7 +38,9 @@ func TestHealth(t *testing.T) {
 func TestViewPresetTemplates(t *testing.T) {
 	router := gin.Default()
 	private := router.Group("/api/v1")
+	public := router.Group("/api/v1")
 	addPrivateRoutes(private)
+	addPublicRoutes(public)
 
 	e := httpexpect.WithConfig(httpexpect.Config{
 		Client: &http.Client{
@@ -49,6 +52,17 @@ func TestViewPresetTemplates(t *testing.T) {
 			httpexpect.NewDebugPrinter(t, true),
 		},
 	})
+
+	userName := os.Getenv("VCENTER_USERNAME")
+	password := os.Getenv("VCENTER_PASSWORD")
+
+	e.GET("/api/v1/login").
+		WithJSON(map[string]interface{}{
+			"username": userName,
+			"password": password,
+		}).
+		Expect().
+		Status(http.StatusOK)
 
 	e.GET("/api/v1/view/templates/preset").
 		Expect().
@@ -97,7 +111,7 @@ func TestTemplateClone(t *testing.T) {
 	e.POST("/api/v1/pod/clone/template").
 		WithJSON(map[string]interface{}{
 			"template": "template-1",
-		}).WithCookie("kamino", "MTcyODA4NzU5OXxEWDhFQVFMX2dBQUJFQUVRQUFBal80QUFBUVp6ZEhKcGJtY01CQUFDYVdRR2MzUnlhVzVuREFrQUIyVmtaWFJsY25NPXysdtKrDBsuXNGif07Ye1yLOgx7U3dePLw7-jOXCpedQg==").
+		}).
 		Expect().
 		Status(http.StatusOK)
 }
