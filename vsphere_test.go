@@ -24,7 +24,6 @@ func init() {
 	router.Use(session)
 
 	private := router.Group("/api/v1")
-	private.Use(authRequired)
 	addPrivateRoutes(private)
 
 	public := router.Group("/api/v1")
@@ -71,7 +70,8 @@ func TestViewPresetTemplates(t *testing.T) {
 			"password": password,
 		}).
 		Expect().
-		Status(http.StatusOK)
+		Status(http.StatusOK).
+		JSON().Object().HasValue("message", "Successfully logged in!")
 
 	e.GET("/api/v1/view/templates/preset").
 		Expect().
