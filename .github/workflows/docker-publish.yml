@@ -41,7 +41,7 @@ jobs:
           rm -rf ./*
           govc object.save
           export GOVC_URL="https://127.0.0.1:8989/sdk" 
-          vcsim -load ./*
+          vcsim -load ./* &
 
       - name: Run tests
         shell: bash
