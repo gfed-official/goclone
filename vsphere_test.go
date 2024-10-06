@@ -13,6 +13,8 @@ import (
 
 var (
 	router *gin.Engine
+	c      *httpexpect.Cookie
+	e      *httpexpect.Expect
 )
 
 func init() {
@@ -33,16 +35,6 @@ func init() {
 }
 
 func TestHealth(t *testing.T) {
-	e := httpexpect.WithConfig(httpexpect.Config{
-		Client: &http.Client{
-			Transport: httpexpect.NewBinder(router),
-			Jar:       httpexpect.NewCookieJar(),
-		},
-		Reporter: httpexpect.NewAssertReporter(t),
-		Printers: []httpexpect.Printer{
-			httpexpect.NewDebugPrinter(t, true),
-		},
-	})
 
 	e.GET("/api/v1/health").
 		Expect().
@@ -50,7 +42,7 @@ func TestHealth(t *testing.T) {
 		JSON().Object().HasValue("status", "ok")
 }
 
-func TestViewPresetTemplates(t *testing.T) {
+func TestLogin(t *testing.T) {
 	e := httpexpect.WithConfig(httpexpect.Config{
 		Client: &http.Client{
 			Transport: httpexpect.NewBinder(router),
@@ -65,16 +57,31 @@ func TestViewPresetTemplates(t *testing.T) {
 	userName := os.Getenv("VCENTER_USERNAME")
 	password := os.Getenv("VCENTER_PASSWORD")
 
-	cookie := e.POST("/api/v1/login").
+	c = e.POST("/api/v1/login").
 		WithJSON(map[string]interface{}{
 			"username": userName,
 			"password": password,
 		}).
 		Expect().
+		Status(http.StatusOK).
 		Cookie("kamino")
 
+}
+
+func TestViewPresetTemplates(t *testing.T) {
+	e := httpexpect.WithConfig(httpexpect.Config{
+		Client: &http.Client{
+			Transport: httpexpect.NewBinder(router),
+			Jar:       httpexpect.NewCookieJar(),
+		},
+		Reporter: httpexpect.NewAssertReporter(t),
+		Printers: []httpexpect.Printer{
+			httpexpect.NewDebugPrinter(t, true),
+		},
+	})
+
 	e.GET("/api/v1/view/templates/preset").
-		WithCookie(cookie.Raw().Name, cookie.Raw().Value).
+		WithCookie(c.Raw().Name, c.Raw().Value).
 		Expect().
 		Status(http.StatusOK).
 		JSON().Object().ContainsKey("templates")
@@ -92,18 +99,8 @@ func TestViewCustomTemplates(t *testing.T) {
 		},
 	})
 
-	userName := os.Getenv("VCENTER_USERNAME")
-	password := os.Getenv("VCENTER_PASSWORD")
-
-	e.POST("/api/v1/login").
-		WithJSON(map[string]interface{}{
-			"username": userName,
-			"password": password,
-		}).
-		Expect().
-		Status(http.StatusOK)
-
 	e.GET("/api/v1/view/templates/custom").
+		WithCookie(c.Raw().Name, c.Raw().Value).
 		Expect().
 		Status(http.StatusOK).
 		JSON().Object().ContainsKey("templates")
@@ -126,6 +123,7 @@ func TestTemplateClone(t *testing.T) {
 	})
 
 	e.POST("/api/v1/pod/clone/template").
+		WithCookie(c.Raw().Name, c.Raw().Value).
 		WithJSON(map[string]interface{}{
 			"template": "CPTC-Web",
 		}).
