@@ -15,7 +15,7 @@ func init() {
 func TestHealth(t *testing.T) {
 	router := gin.Default()
 	public := router.Group("/api/v1")
-	public.GET("/api/v1/health", health)
+	public.GET("/health", health)
 
 	e := httpexpect.WithConfig(httpexpect.Config{
 		Client: &http.Client{
