@@ -35,14 +35,14 @@ func TestGetVMsInResourcePool(t *testing.T) {
 
     vms := []mo.VirtualMachine{}
     for _, rp := range childRPs {
-        vms, err := GetVMsInResourcePool(rp.Reference())
+        vmList, err := GetVMsInResourcePool(rp.Reference())
         if err != nil {
             t.Error(err)
         }
         if vms == nil {
             continue
         }
-        vms = append(vms, vms...)
+        vms = append(vms, vmList...)
     }
     assert.NotEmpty(t, vms)
 }
@@ -54,13 +54,13 @@ func TestVMObjects(t *testing.T) {
     }
 
     vms, err := GetVMsInResourcePool(rp.Reference())
-
     for _, v := range vms {
         vmObj := object.NewVirtualMachine(vSphereClient.client, v.Reference())
         vmName, err := vmObj.ObjectName(vSphereClient.ctx)
         if err != nil {
             t.Error(err)
         }
+        fmt.Println(vmName)
         newVM := vm.VM{
             Name: vmName,
             Ref: v.Reference(),
