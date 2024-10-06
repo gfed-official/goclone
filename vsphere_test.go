@@ -116,10 +116,6 @@ func TestViewCustomTemplates(t *testing.T) {
 }
 
 func TestTemplateClone(t *testing.T) {
-	router := gin.Default()
-	private := router.Group("/api/v1")
-	addPrivateRoutes(private)
-
 	e := httpexpect.WithConfig(httpexpect.Config{
 		Client: &http.Client{
 			Transport: httpexpect.NewBinder(router),
