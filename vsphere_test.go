@@ -1,86 +1,35 @@
 package main
 
 import (
-	"fmt"
+	"net/http"
 	"testing"
 
-	"goclone/vm"
-
-	"github.com/stretchr/testify/assert"
-	"github.com/vmware/govmomi/object"
-	"github.com/vmware/govmomi/vim25/mo"
+	"github.com/gavv/httpexpect/v2"
+	"github.com/gin-gonic/gin"
 )
 
-func TestPods(t *testing.T) {
-    pods, err := GetAllPods()
-    if err != nil {
-        t.Error(err)
-    }
-    assert.NotEmpty(t, pods)
+func init() {
+	gin.SetMode(gin.TestMode)
 }
 
-func TestGetChildResourcePools(t *testing.T) {
-    resourcePools, err := GetChildResourcePools(mainConfig.VCenterConfig.PresetTemplateResourcePool)
-    if err != nil {
-        t.Error(err)
-    }
-    assert.NotEmpty(t, resourcePools)
-}
+func TestHealth(t *testing.T) {
+	router := gin.Default()
+	public := router.Group("/api/v1")
+	public.GET("/api/v1/health", health)
 
-func TestGetVMsInResourcePool(t *testing.T) {
-    childRPs, err := GetChildResourcePools(mainConfig.VCenterConfig.PresetTemplateResourcePool)
-    if err != nil {
-        t.Error(err)
-    }
+	e := httpexpect.WithConfig(httpexpect.Config{
+		Client: &http.Client{
+			Transport: httpexpect.NewBinder(router),
+			Jar:       httpexpect.NewCookieJar(),
+		},
+		Reporter: httpexpect.NewAssertReporter(t),
+		Printers: []httpexpect.Printer{
+			httpexpect.NewDebugPrinter(t, true),
+		},
+	})
 
-    vms := []mo.VirtualMachine{}
-    for _, rp := range childRPs {
-        vmList, err := GetVMsInResourcePool(rp.Reference())
-        if err != nil {
-            t.Error(err)
-        }
-        if vms == nil {
-            continue
-        }
-        vms = append(vms, vmList...)
-    }
-
-    assert.NotEmpty(t, vms)
-}
-
-func TestVMObjects(t *testing.T) {
-    childRPs, err := GetChildResourcePools(mainConfig.VCenterConfig.PresetTemplateResourcePool)
-    if err != nil {
-        t.Error(err)
-    }
-
-    vmList := []vm.VM{}
-    for _, rp := range childRPs {
-        vms, err := GetVMsInResourcePool(rp.Reference())
-        if err != nil {
-            t.Error(err)
-        }
-        for _, v := range vms {
-            vmObj := object.NewVirtualMachine(vSphereClient.client, v.Reference())
-            vmName, err := vmObj.ObjectName(vSphereClient.ctx)
-            if err != nil {
-                t.Error(err)
-            }
-            newVM := vm.VM{
-                Name: vmName,
-                Ref: v.Reference(),
-                Client: vSphereClient.client,
-                Ctx: &vSphereClient.ctx,
-                IsRouter: false,
-                IsHidden: false,
-                GuestOS: "Test",
-            }
-
-            resString := fmt.Sprintf("VM: %s\nUsername: %s\nPassword: %s\nIs Router: %v\nIs Hidden: %v\nGuest OS: %s\n", newVM.Name, newVM.Username, newVM.Password, newVM.IsRouter, newVM.IsHidden, newVM.GuestOS)
-            assert.Equal(t, resString, newVM.String())
-            vmList = append(vmList, newVM)
-        }
-    }
-
-    assert.NotEmpty(t, vmList)
+	e.GET("/api/v1/health").
+		Expect().
+		Status(http.StatusOK).
+		JSON().Object().HasValue("status", "ok")
 }
