@@ -80,15 +80,15 @@ func init() {
 		client: client.Client,
 		ctx:    context.Background(),
 	}
-
-	InitializeGovmomi()
-	err = vSphereLoadTakenPortGroups()
-	if err != nil {
-		log.Fatalln(errors.Wrap(err, "Error finding taken port groups"))
-	}
 }
 
 func main() {
+	InitializeGovmomi()
+    err := vSphereLoadTakenPortGroups()
+	if err != nil {
+		log.Fatalln(errors.Wrap(err, "Error finding taken port groups"))
+	}
+
 	go refreshSession()
 
 	//setup logging
