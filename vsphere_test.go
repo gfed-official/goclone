@@ -14,6 +14,7 @@ import (
 var (
 	router *gin.Engine
 	c      *httpexpect.Cookie
+	pods   *httpexpect.Object
 )
 
 func init() {
@@ -132,6 +133,46 @@ func TestTemplateClone(t *testing.T) {
 		WithJSON(map[string]interface{}{
 			"template": "CPTC-Web",
 		}).
+		Expect().
+		Status(http.StatusOK)
+}
+
+func TestViewPods(t *testing.T) {
+	e := httpexpect.WithConfig(httpexpect.Config{
+		Client: &http.Client{
+			Transport: httpexpect.NewBinder(router),
+			Jar:       httpexpect.NewCookieJar(),
+		},
+		Reporter: httpexpect.NewAssertReporter(t),
+		Printers: []httpexpect.Printer{
+			httpexpect.NewDebugPrinter(t, true),
+		},
+	})
+
+	pods = e.GET("/api/v1/view/pods").
+		WithCookie(c.Raw().Name, c.Raw().Value).
+		Expect().
+		Status(http.StatusOK).
+		JSON().Object()
+}
+
+func TestDeletePod(t *testing.T) {
+	e := httpexpect.WithConfig(httpexpect.Config{
+		Client: &http.Client{
+			Transport: httpexpect.NewBinder(router),
+			Jar:       httpexpect.NewCookieJar(),
+		},
+		Reporter: httpexpect.NewAssertReporter(t),
+		Printers: []httpexpect.Printer{
+			httpexpect.NewDebugPrinter(t, true),
+		},
+	})
+
+	pod := pods.Value("pods").Array().Value(0).Object()
+	podName := pod.Value("name").String().Raw()
+
+	e.DELETE("/api/v1/pod/delete/"+podName).
+		WithCookie(c.Raw().Name, c.Raw().Value).
 		Expect().
 		Status(http.StatusOK)
 }
