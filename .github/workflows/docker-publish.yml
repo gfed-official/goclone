@@ -7,8 +7,15 @@ name: Test and Build Goclone
 
 on:
   push:
-    branches: [ "main" ]
-    # Publish semver tags as releases.
+    branches:
+      - development
+  pull_request:
+    types:
+      - opened
+      - synchronize
+    branches:
+      - main
+  # Publish semver tags as releases.
 env:
   # Use docker.io for Docker Hub if empty
   REGISTRY: docker.io
