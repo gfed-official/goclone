@@ -25,13 +25,16 @@ func init() {
 	session := sessions.Sessions("kamino", cookie.NewStore([]byte("kamino")))
 	router.Use(session)
 
+	public := router.Group("/api/v1")
+	addPublicRoutes(public)
+
 	private := router.Group("/api/v1")
 	private.Use(authRequired)
 	addPrivateRoutes(private)
 
-	public := router.Group("/api/v1")
-	addPublicRoutes(public)
-
+	admin := router.Group("/api/v1/admin")
+	admin.Use(adminRequired)
+	addAdminRoutes(admin)
 }
 
 func TestHealth(t *testing.T) {
@@ -153,7 +156,26 @@ func TestViewPods(t *testing.T) {
 		WithCookie(c.Raw().Name, c.Raw().Value).
 		Expect().
 		Status(http.StatusOK).
-		JSON().Object()
+		JSON().Object().ContainsKey("pods")
+}
+
+func TestAdminGetPods(t *testing.T) {
+	e := httpexpect.WithConfig(httpexpect.Config{
+		Client: &http.Client{
+			Transport: httpexpect.NewBinder(router),
+			Jar:       httpexpect.NewCookieJar(),
+		},
+		Reporter: httpexpect.NewAssertReporter(t),
+		Printers: []httpexpect.Printer{
+			httpexpect.NewDebugPrinter(t, true),
+		},
+	})
+
+	e.GET("/api/v1/admin/view/pods").
+		WithCookie(c.Raw().Name, c.Raw().Value).
+		Expect().
+		Status(http.StatusOK).
+		JSON().Object().ContainsKey("pods")
 }
 
 func TestDeletePod(t *testing.T) {
