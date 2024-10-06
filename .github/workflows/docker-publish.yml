@@ -52,8 +52,8 @@ jobs:
           VCENTER_USERNAME: ${{ secrets.VCENTER_USERNAME }}
         run: |
           source .env
-          printenv
           go mod tidy
+          ss -blunt
           go test -v ./...
 
 
