@@ -37,7 +37,7 @@ func init() {
 	addAdminRoutes(admin)
 }
 
-func TestHealth(t *testing.T) {
+func TestAPI(t *testing.T) {
 	e := httpexpect.WithConfig(httpexpect.Config{
 		Client: &http.Client{
 			Transport: httpexpect.NewBinder(router),
@@ -49,24 +49,31 @@ func TestHealth(t *testing.T) {
 		},
 	})
 
+	testFuncs := []func(*httpexpect.Expect){
+		TestHealth,
+		TestLogin,
+		TestViewPresetTemplates,
+		TestViewCustomTemplates,
+		TestTemplateClone,
+		TestViewPods,
+		TestAdminGetPods,
+		TestDeletePod,
+	}
+
+	for _, testFunc := range testFuncs {
+		testFunc(e)
+	}
+
+}
+
+func TestHealth(e *httpexpect.Expect) {
 	e.GET("/api/v1/health").
 		Expect().
 		Status(http.StatusOK).
 		JSON().Object().HasValue("status", "ok")
 }
 
-func TestLogin(t *testing.T) {
-	e := httpexpect.WithConfig(httpexpect.Config{
-		Client: &http.Client{
-			Transport: httpexpect.NewBinder(router),
-			Jar:       httpexpect.NewCookieJar(),
-		},
-		Reporter: httpexpect.NewAssertReporter(t),
-		Printers: []httpexpect.Printer{
-			httpexpect.NewDebugPrinter(t, true),
-		},
-	})
-
+func TestLogin(e *httpexpect.Expect) {
 	userName := os.Getenv("VCENTER_USERNAME")
 	password := os.Getenv("VCENTER_PASSWORD")
 
@@ -81,18 +88,7 @@ func TestLogin(t *testing.T) {
 
 }
 
-func TestViewPresetTemplates(t *testing.T) {
-	e := httpexpect.WithConfig(httpexpect.Config{
-		Client: &http.Client{
-			Transport: httpexpect.NewBinder(router),
-			Jar:       httpexpect.NewCookieJar(),
-		},
-		Reporter: httpexpect.NewAssertReporter(t),
-		Printers: []httpexpect.Printer{
-			httpexpect.NewDebugPrinter(t, true),
-		},
-	})
-
+func TestViewPresetTemplates(e *httpexpect.Expect) {
 	e.GET("/api/v1/view/templates/preset").
 		WithCookie(c.Raw().Name, c.Raw().Value).
 		Expect().
@@ -100,18 +96,7 @@ func TestViewPresetTemplates(t *testing.T) {
 		JSON().Object().ContainsKey("templates")
 }
 
-func TestViewCustomTemplates(t *testing.T) {
-	e := httpexpect.WithConfig(httpexpect.Config{
-		Client: &http.Client{
-			Transport: httpexpect.NewBinder(router),
-			Jar:       httpexpect.NewCookieJar(),
-		},
-		Reporter: httpexpect.NewAssertReporter(t),
-		Printers: []httpexpect.Printer{
-			httpexpect.NewDebugPrinter(t, true),
-		},
-	})
-
+func TestViewCustomTemplates(e *httpexpect.Expect) {
 	e.GET("/api/v1/view/templates/custom").
 		WithCookie(c.Raw().Name, c.Raw().Value).
 		Expect().
@@ -119,18 +104,7 @@ func TestViewCustomTemplates(t *testing.T) {
 		JSON().Object().ContainsKey("templates")
 }
 
-func TestTemplateClone(t *testing.T) {
-	e := httpexpect.WithConfig(httpexpect.Config{
-		Client: &http.Client{
-			Transport: httpexpect.NewBinder(router),
-			Jar:       httpexpect.NewCookieJar(),
-		},
-		Reporter: httpexpect.NewAssertReporter(t),
-		Printers: []httpexpect.Printer{
-			httpexpect.NewDebugPrinter(t, true),
-		},
-	})
-
+func TestTemplateClone(e *httpexpect.Expect) {
 	e.POST("/api/v1/pod/clone/template").
 		WithCookie(c.Raw().Name, c.Raw().Value).
 		WithJSON(map[string]interface{}{
@@ -140,18 +114,7 @@ func TestTemplateClone(t *testing.T) {
 		Status(http.StatusOK)
 }
 
-func TestViewPods(t *testing.T) {
-	e := httpexpect.WithConfig(httpexpect.Config{
-		Client: &http.Client{
-			Transport: httpexpect.NewBinder(router),
-			Jar:       httpexpect.NewCookieJar(),
-		},
-		Reporter: httpexpect.NewAssertReporter(t),
-		Printers: []httpexpect.Printer{
-			httpexpect.NewDebugPrinter(t, true),
-		},
-	})
-
+func TestViewPods(e *httpexpect.Expect) {
 	pods = e.GET("/api/v1/view/pods").
 		WithCookie(c.Raw().Name, c.Raw().Value).
 		Expect().
@@ -159,18 +122,7 @@ func TestViewPods(t *testing.T) {
 		JSON().Object().ContainsKey("pods")
 }
 
-func TestAdminGetPods(t *testing.T) {
-	e := httpexpect.WithConfig(httpexpect.Config{
-		Client: &http.Client{
-			Transport: httpexpect.NewBinder(router),
-			Jar:       httpexpect.NewCookieJar(),
-		},
-		Reporter: httpexpect.NewAssertReporter(t),
-		Printers: []httpexpect.Printer{
-			httpexpect.NewDebugPrinter(t, true),
-		},
-	})
-
+func TestAdminGetPods(e *httpexpect.Expect) {
 	pod := pods.Value("pods").Array().Value(0).Object()
 	podName := pod.Value("Name").String().Raw()
 
@@ -181,18 +133,7 @@ func TestAdminGetPods(t *testing.T) {
 		JSON().Array().Value(0).Object().ContainsKey("Name").HasValue("Name", podName)
 }
 
-func TestDeletePod(t *testing.T) {
-	e := httpexpect.WithConfig(httpexpect.Config{
-		Client: &http.Client{
-			Transport: httpexpect.NewBinder(router),
-			Jar:       httpexpect.NewCookieJar(),
-		},
-		Reporter: httpexpect.NewAssertReporter(t),
-		Printers: []httpexpect.Printer{
-			httpexpect.NewDebugPrinter(t, true),
-		},
-	})
-
+func TestDeletePod(e *httpexpect.Expect) {
 	pod := pods.Value("pods").Array().Value(0).Object()
 	podName := pod.Value("Name").String().Raw()
 
