@@ -50,14 +50,14 @@ func TestAPI(t *testing.T) {
 	})
 
 	testFuncs := []func(*httpexpect.Expect){
-		TestHealth,
-		TestLogin,
-		TestViewPresetTemplates,
-		TestViewCustomTemplates,
-		TestTemplateClone,
-		TestViewPods,
-		TestAdminGetPods,
-		TestDeletePod,
+		HealthEndpoint,
+		LoginEndpoint,
+		ViewPresetTemplatesEndpoint,
+		ViewCustomTemplatesEndpoint,
+		TemplateCloneEndpoint,
+		ViewPodsEndpoint,
+		AdminGetPodsEndpoint,
+		DeletePodEndpoint,
 	}
 
 	for _, testFunc := range testFuncs {
@@ -66,14 +66,14 @@ func TestAPI(t *testing.T) {
 
 }
 
-func TestHealth(e *httpexpect.Expect) {
+func HealthEndpoint(e *httpexpect.Expect) {
 	e.GET("/api/v1/health").
 		Expect().
 		Status(http.StatusOK).
 		JSON().Object().HasValue("status", "ok")
 }
 
-func TestLogin(e *httpexpect.Expect) {
+func LoginEndpoint(e *httpexpect.Expect) {
 	userName := os.Getenv("VCENTER_USERNAME")
 	password := os.Getenv("VCENTER_PASSWORD")
 
@@ -88,7 +88,7 @@ func TestLogin(e *httpexpect.Expect) {
 
 }
 
-func TestViewPresetTemplates(e *httpexpect.Expect) {
+func ViewPresetTemplatesEndpoint(e *httpexpect.Expect) {
 	e.GET("/api/v1/view/templates/preset").
 		WithCookie(c.Raw().Name, c.Raw().Value).
 		Expect().
@@ -96,7 +96,7 @@ func TestViewPresetTemplates(e *httpexpect.Expect) {
 		JSON().Object().ContainsKey("templates")
 }
 
-func TestViewCustomTemplates(e *httpexpect.Expect) {
+func ViewCustomTemplatesEndpoint(e *httpexpect.Expect) {
 	e.GET("/api/v1/view/templates/custom").
 		WithCookie(c.Raw().Name, c.Raw().Value).
 		Expect().
@@ -104,7 +104,7 @@ func TestViewCustomTemplates(e *httpexpect.Expect) {
 		JSON().Object().ContainsKey("templates")
 }
 
-func TestTemplateClone(e *httpexpect.Expect) {
+func TemplateCloneEndpoint(e *httpexpect.Expect) {
 	e.POST("/api/v1/pod/clone/template").
 		WithCookie(c.Raw().Name, c.Raw().Value).
 		WithJSON(map[string]interface{}{
@@ -114,7 +114,7 @@ func TestTemplateClone(e *httpexpect.Expect) {
 		Status(http.StatusOK)
 }
 
-func TestViewPods(e *httpexpect.Expect) {
+func ViewPodsEndpoint(e *httpexpect.Expect) {
 	pods = e.GET("/api/v1/view/pods").
 		WithCookie(c.Raw().Name, c.Raw().Value).
 		Expect().
@@ -122,7 +122,7 @@ func TestViewPods(e *httpexpect.Expect) {
 		JSON().Object().ContainsKey("pods")
 }
 
-func TestAdminGetPods(e *httpexpect.Expect) {
+func AdminGetPodsEndpoint(e *httpexpect.Expect) {
 	pod := pods.Value("pods").Array().Value(0).Object()
 	podName := pod.Value("Name").String().Raw()
 
@@ -133,7 +133,7 @@ func TestAdminGetPods(e *httpexpect.Expect) {
 		JSON().Array().Value(0).Object().ContainsKey("Name").HasValue("Name", podName)
 }
 
-func TestDeletePod(e *httpexpect.Expect) {
+func DeletePodEndpoint(e *httpexpect.Expect) {
 	pod := pods.Value("pods").Array().Value(0).Object()
 	podName := pod.Value("Name").String().Raw()
 
