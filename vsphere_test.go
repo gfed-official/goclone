@@ -117,7 +117,7 @@ func LoginEndpoint(t *testing.T) {
 }
 
 func ViewPresetTemplatesEndpoint(t *testing.T) {
-	e.GET("/api/v1/view/templates/preset").
+	templates = e.GET("/api/v1/view/templates/preset").
 		WithCookie(c.Raw().Name, c.Raw().Value).
 		Expect().
 		Status(http.StatusOK).
@@ -125,7 +125,7 @@ func ViewPresetTemplatesEndpoint(t *testing.T) {
 }
 
 func ViewCustomTemplatesEndpoint(t *testing.T) {
-	templates = e.GET("/api/v1/view/templates/custom").
+	e.GET("/api/v1/view/templates/custom").
 		WithCookie(c.Raw().Name, c.Raw().Value).
 		Expect().
 		Status(http.StatusOK).
