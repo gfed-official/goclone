@@ -133,7 +133,7 @@ func ViewCustomTemplatesEndpoint(t *testing.T) {
 }
 
 func TemplateCloneEndpoint(t *testing.T) {
-	templateName := templates.Value("templates").Array().Value(0).Object().Value("Name").String().Raw()
+	templateName := templates.Value("templates").Array().Value(0).String().Raw()
 
 	e.POST("/api/v1/pod/clone/template").
 		WithCookie(c.Raw().Name, c.Raw().Value).
