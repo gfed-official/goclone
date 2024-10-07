@@ -12,9 +12,11 @@ import (
 )
 
 var (
-	router *gin.Engine
-	c      *httpexpect.Cookie
-	pods   *httpexpect.Object
+	router    *gin.Engine
+	c         *httpexpect.Cookie
+	pods      *httpexpect.Object
+	templates *httpexpect.Object
+	e         *httpexpect.Expect
 )
 
 func init() {
@@ -49,31 +51,57 @@ func TestAPI(t *testing.T) {
 		},
 	})
 
-	testFuncs := []func(*httpexpect.Expect){
-		HealthEndpoint,
-		LoginEndpoint,
-		ViewPresetTemplatesEndpoint,
-		ViewCustomTemplatesEndpoint,
-		TemplateCloneEndpoint,
-		ViewPodsEndpoint,
-		AdminGetPodsEndpoint,
-		DeletePodEndpoint,
+	testFuncs := []struct {
+		Name string
+		Test func(t *testing.T)
+	}{
+		{
+			Name: "HealthEndpoint",
+			Test: HealthEndpoint,
+		},
+		{
+			Name: "LoginEndpoint",
+			Test: LoginEndpoint,
+		},
+		{
+			Name: "ViewPresetTemplatesEndpoint",
+			Test: ViewPresetTemplatesEndpoint,
+		},
+		{
+			Name: "ViewCustomTemplatesEndpoint",
+			Test: ViewCustomTemplatesEndpoint,
+		},
+		{
+			Name: "TemplateCloneEndpoint",
+			Test: TemplateCloneEndpoint,
+		},
+		{
+			Name: "ViewPodsEndpoint",
+			Test: ViewPodsEndpoint,
+		},
+		{
+			Name: "AdminGetPodsEndpoint",
+			Test: AdminGetPodsEndpoint,
+		},
+		{
+			Name: "DeletePodEndpoint",
+			Test: DeletePodEndpoint,
+		},
 	}
 
 	for _, testFunc := range testFuncs {
-		testFunc(e)
+		t.Run(testFunc.Name, testFunc.Test)
 	}
-
 }
 
-func HealthEndpoint(e *httpexpect.Expect) {
+func HealthEndpoint(t *testing.T) {
 	e.GET("/api/v1/health").
 		Expect().
 		Status(http.StatusOK).
 		JSON().Object().HasValue("status", "ok")
 }
 
-func LoginEndpoint(e *httpexpect.Expect) {
+func LoginEndpoint(t *testing.T) {
 	userName := os.Getenv("VCENTER_USERNAME")
 	password := os.Getenv("VCENTER_PASSWORD")
 
@@ -88,7 +116,7 @@ func LoginEndpoint(e *httpexpect.Expect) {
 
 }
 
-func ViewPresetTemplatesEndpoint(e *httpexpect.Expect) {
+func ViewPresetTemplatesEndpoint(t *testing.T) {
 	e.GET("/api/v1/view/templates/preset").
 		WithCookie(c.Raw().Name, c.Raw().Value).
 		Expect().
@@ -96,25 +124,27 @@ func ViewPresetTemplatesEndpoint(e *httpexpect.Expect) {
 		JSON().Object().ContainsKey("templates")
 }
 
-func ViewCustomTemplatesEndpoint(e *httpexpect.Expect) {
-	e.GET("/api/v1/view/templates/custom").
+func ViewCustomTemplatesEndpoint(t *testing.T) {
+	templates = e.GET("/api/v1/view/templates/custom").
 		WithCookie(c.Raw().Name, c.Raw().Value).
 		Expect().
 		Status(http.StatusOK).
 		JSON().Object().ContainsKey("templates")
 }
 
-func TemplateCloneEndpoint(e *httpexpect.Expect) {
+func TemplateCloneEndpoint(t *testing.T) {
+	templateName := templates.Value("templates").Array().Value(0).Object().Value("Name").String().Raw()
+
 	e.POST("/api/v1/pod/clone/template").
 		WithCookie(c.Raw().Name, c.Raw().Value).
 		WithJSON(map[string]interface{}{
-			"template": "CPTC-Web",
+			"template": templateName,
 		}).
 		Expect().
 		Status(http.StatusOK)
 }
 
-func ViewPodsEndpoint(e *httpexpect.Expect) {
+func ViewPodsEndpoint(t *testing.T) {
 	pods = e.GET("/api/v1/view/pods").
 		WithCookie(c.Raw().Name, c.Raw().Value).
 		Expect().
@@ -122,7 +152,7 @@ func ViewPodsEndpoint(e *httpexpect.Expect) {
 		JSON().Object().ContainsKey("pods")
 }
 
-func AdminGetPodsEndpoint(e *httpexpect.Expect) {
+func AdminGetPodsEndpoint(t *testing.T) {
 	pod := pods.Value("pods").Array().Value(0).Object()
 	podName := pod.Value("Name").String().Raw()
 
@@ -133,7 +163,7 @@ func AdminGetPodsEndpoint(e *httpexpect.Expect) {
 		JSON().Array().Value(0).Object().ContainsKey("Name").HasValue("Name", podName)
 }
 
-func DeletePodEndpoint(e *httpexpect.Expect) {
+func DeletePodEndpoint(t *testing.T) {
 	pod := pods.Value("pods").Array().Value(0).Object()
 	podName := pod.Value("Name").String().Raw()
 
