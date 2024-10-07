@@ -40,7 +40,7 @@ func init() {
 }
 
 func TestAPI(t *testing.T) {
-	e := httpexpect.WithConfig(httpexpect.Config{
+	e = httpexpect.WithConfig(httpexpect.Config{
 		Client: &http.Client{
 			Transport: httpexpect.NewBinder(router),
 			Jar:       httpexpect.NewCookieJar(),
