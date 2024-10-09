@@ -101,7 +101,7 @@ func HealthEndpoint(t *testing.T) {
     JSON().Object().HasValue("status", "ok")
 }
 
-func LoginEndpoint(t *testing.T, username, password string) {
+func LoginEndpoint(t *testing.T) {
     type testCase struct {
         Username string
         Password string
