@@ -122,16 +122,15 @@ func LoginEndpoint(t *testing.T) {
     }
 
     for _, tc := range testCases {
-        localCookie := e.POST("/api/v1/login").
+        resp := e.POST("/api/v1/login").
         WithJSON(map[string]interface{}{
             "username": tc.Username,
             "password": tc.Password,
         }).
         Expect().
-        Status(tc.ExpectedStatus).
-        Cookie("kamino")
+        Status(tc.ExpectedStatus)
         if tc.ExpectedStatus == http.StatusOK {
-            c = localCookie
+            c = resp.Cookie("kamino")
         }
     }
 }
