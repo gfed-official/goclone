@@ -181,7 +181,7 @@ func ViewPresetTemplatesEndpoint(t *testing.T) {
 
     for _, tc := range testCases {
         obj := e.GET("/api/v1/view/templates/preset").
-        WithCookie(adminCookie.Raw().Name, adminCookie.Raw().Value).
+        WithCookie(tc.Cookie.Raw().Name, tc.Cookie.Raw().Value).
         Expect().
         Status(http.StatusOK).
         JSON().Object()
