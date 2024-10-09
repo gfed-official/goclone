@@ -153,7 +153,7 @@ func LoginEndpoint(t *testing.T) {
         }).
         Expect().
         Status(tc.ExpectedStatus)
-        if tc.ExpectedStatus == http.StatusOK {
+        if tc.ExpectedStatus == http.StatusOK && tc.Username == os.Getenv("VCENTER_USERNAME") {
             adminCookie = resp.Cookie("kamino")
         }
         if tc.ExpectedStatus == http.StatusOK && tc.Username == "goclone_test" {
@@ -220,7 +220,7 @@ func DeletePodEndpoint(t *testing.T) {
 }
 
 func DeleteUserEndpoint(t *testing.T) {
-    e.DELETE("/api/v1/user/delete/goclone_test").
+    e.DELETE("/api/v1/admin/user/delete/goclone_test").
     WithCookie(adminCookie.Raw().Name, adminCookie.Raw().Value).
     Expect().
     Status(http.StatusOK)
