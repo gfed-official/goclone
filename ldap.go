@@ -261,3 +261,18 @@ func (cl *Client) UserExists(username string) (bool, error) {
 
 	return entry != nil, nil
 }
+
+func (cl *Client) DeleteUser(username string) error {
+    userdn, err := cl.GetUserDN(username)
+    if err != nil {
+        return fmt.Errorf("Failed to get user DN: %v", err)
+    }
+
+    req := ldap.NewDelRequest(userdn, nil)
+    err = cl.ldap.Del(req)
+    if err != nil {
+        return fmt.Errorf("Failed to delete user: %v", err)
+    }
+
+    return nil
+}

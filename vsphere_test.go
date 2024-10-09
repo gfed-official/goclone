@@ -12,11 +12,12 @@ import (
 )
 
 var (
-    router    *gin.Engine
-    c         *httpexpect.Cookie
-    pods      *httpexpect.Object
-    templates *httpexpect.Object
-    e         *httpexpect.Expect
+    router        *gin.Engine
+    adminCookie   *httpexpect.Cookie
+    noAdminCookie *httpexpect.Cookie
+    pods          *httpexpect.Object
+    templates     *httpexpect.Object
+    e             *httpexpect.Expect
 )
 
 func init() {
@@ -60,6 +61,10 @@ func TestAPI(t *testing.T) {
             Test: HealthEndpoint,
         },
         {
+            Name: "RegisterEndpoint",
+            Test: RegisterEndpoint,
+        },
+        {
             Name: "LoginEndpoint",
             Test: LoginEndpoint,
         },
@@ -87,6 +92,10 @@ func TestAPI(t *testing.T) {
             Name: "DeletePodEndpoint",
             Test: DeletePodEndpoint,
         },
+        {
+            Name: "DeleteUserEndpoint",
+            Test: DeleteUserEndpoint,
+        },
     }
 
     for _, testFunc := range testFuncs {
@@ -99,6 +108,16 @@ func HealthEndpoint(t *testing.T) {
     Expect().
     Status(http.StatusOK).
     JSON().Object().HasValue("status", "ok")
+}
+
+func RegisterEndpoint(t *testing.T) {
+    e.POST("/api/v1/register").
+    WithJSON(map[string]interface{}{
+        "username": "goclone_test",
+        "password": os.Getenv("VCENTER_PASSWORD"),
+    }).
+    Expect().
+    Status(http.StatusOK)
 }
 
 func LoginEndpoint(t *testing.T) {
@@ -119,6 +138,11 @@ func LoginEndpoint(t *testing.T) {
             Password: os.Getenv("VCENTER_PASSWORD"),
             ExpectedStatus: http.StatusOK,
         },
+        {
+            Username: "goclone_test",
+            Password: os.Getenv("VCENTER_PASSWORD"),
+            ExpectedStatus: http.StatusOK,
+        },
     }
 
     for _, tc := range testCases {
@@ -130,14 +154,17 @@ func LoginEndpoint(t *testing.T) {
         Expect().
         Status(tc.ExpectedStatus)
         if tc.ExpectedStatus == http.StatusOK {
-            c = resp.Cookie("kamino")
+            adminCookie = resp.Cookie("kamino")
+        }
+        if tc.ExpectedStatus == http.StatusOK && tc.Username == "goclone_test" {
+            noAdminCookie = resp.Cookie("kamino")
         }
     }
 }
 
 func ViewPresetTemplatesEndpoint(t *testing.T) {
     templates = e.GET("/api/v1/view/templates/preset").
-    WithCookie(c.Raw().Name, c.Raw().Value).
+    WithCookie(adminCookie.Raw().Name, adminCookie.Raw().Value).
     Expect().
     Status(http.StatusOK).
     JSON().Object().ContainsKey("templates")
@@ -145,7 +172,7 @@ func ViewPresetTemplatesEndpoint(t *testing.T) {
 
 func ViewCustomTemplatesEndpoint(t *testing.T) {
     e.GET("/api/v1/view/templates/custom").
-    WithCookie(c.Raw().Name, c.Raw().Value).
+    WithCookie(adminCookie.Raw().Name, adminCookie.Raw().Value).
     Expect().
     Status(http.StatusOK).
     JSON().Object().ContainsKey("templates")
@@ -155,7 +182,7 @@ func TemplateCloneEndpoint(t *testing.T) {
     templateName := templates.Value("templates").Array().Value(0).String().Raw()
 
     e.POST("/api/v1/pod/clone/template").
-    WithCookie(c.Raw().Name, c.Raw().Value).
+    WithCookie(adminCookie.Raw().Name, adminCookie.Raw().Value).
     WithJSON(map[string]interface{}{
         "template": templateName,
     }).
@@ -165,7 +192,7 @@ func TemplateCloneEndpoint(t *testing.T) {
 
 func ViewPodsEndpoint(t *testing.T) {
     pods = e.GET("/api/v1/view/pods").
-    WithCookie(c.Raw().Name, c.Raw().Value).
+    WithCookie(adminCookie.Raw().Name, adminCookie.Raw().Value).
     Expect().
     Status(http.StatusOK).
     JSON().Object().ContainsKey("pods")
@@ -176,7 +203,7 @@ func AdminGetPodsEndpoint(t *testing.T) {
     podName := pod.Value("Name").String().Raw()
 
     e.GET("/api/v1/admin/view/pods").
-    WithCookie(c.Raw().Name, c.Raw().Value).
+    WithCookie(adminCookie.Raw().Name, adminCookie.Raw().Value).
     Expect().
     Status(http.StatusOK).
     JSON().Array().Value(0).Object().ContainsKey("Name").HasValue("Name", podName)
@@ -187,7 +214,14 @@ func DeletePodEndpoint(t *testing.T) {
     podName := pod.Value("Name").String().Raw()
 
     e.DELETE("/api/v1/pod/delete/"+podName).
-    WithCookie(c.Raw().Name, c.Raw().Value).
+    WithCookie(adminCookie.Raw().Name, adminCookie.Raw().Value).
+    Expect().
+    Status(http.StatusOK)
+}
+
+func DeleteUserEndpoint(t *testing.T) {
+    e.DELETE("/api/v1/user/delete/goclone_test").
+    WithCookie(adminCookie.Raw().Name, adminCookie.Raw().Value).
     Expect().
     Status(http.StatusOK)
 }

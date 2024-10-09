@@ -38,6 +38,7 @@ func addAdminRoutes(g *gin.RouterGroup) {
 	g.DELETE("/pod/delete/bulk", adminBulkDeletePods)
 	g.POST("/templates/refresh", refreshTemplates)
 	g.POST("/user/create/bulk", bulkCreateUsers)
+    g.DELETE("/user/delete/:username", adminDeleteUser)
 	g.POST("/pod/revert/bulk", adminBulkRevertPod)
 	g.POST("/pod/power/bulk", adminBulkPowerPod)
 }
@@ -126,13 +127,12 @@ func invokePodCloneCustom(c *gin.Context) {
 		return
 	}
 
-	if len(form.Vmstoclone) > 8 {
+	if len(form.Vmstoclone) > 10 {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Too many VMs in custom pod"})
 		return
 	}
 
 	fmt.Printf("User %s is cloning custom pod %s\n", username, form.Name)
-
 	err = vSphereCustomClone(form.Name, form.Vmstoclone, form.Nat, username)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -227,6 +227,10 @@ func adminBulkRevertPod(c *gin.Context) {
 	}
 
 	err := c.ShouldBindJSON(&form)
+    if err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+        return
+    }
 
 	failed, err := bulkRevertPods(form.Filters, form.Snapshot)
 	if err != nil {
@@ -252,6 +256,10 @@ func adminBulkPowerPod(c *gin.Context) {
 	}
 	var state string
 	err := c.ShouldBindJSON(&form)
+    if err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+        return
+    }
 
 	if form.On {
 		state = "on"
@@ -260,6 +268,10 @@ func adminBulkPowerPod(c *gin.Context) {
 	}
 
 	failed, err := bulkPowerPods(form.Filters, form.On)
+    if err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+        return
+    }
 
 	if len(failed) > 0 {
 		type failedPods struct {
