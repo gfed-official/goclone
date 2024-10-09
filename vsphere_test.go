@@ -234,7 +234,7 @@ func AdminGetPodsEndpoint(t *testing.T) {
         },
         {
             Cookie: noAdminCookie,
-            ExpectedStatus: http.StatusForbidden,
+            ExpectedStatus: http.StatusUnauthorized,
         },
     }
 
