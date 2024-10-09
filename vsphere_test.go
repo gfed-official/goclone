@@ -163,11 +163,34 @@ func LoginEndpoint(t *testing.T) {
 }
 
 func ViewPresetTemplatesEndpoint(t *testing.T) {
-    templates = e.GET("/api/v1/view/templates/preset").
-    WithCookie(adminCookie.Raw().Name, adminCookie.Raw().Value).
-    Expect().
-    Status(http.StatusOK).
-    JSON().Object().ContainsKey("templates")
+    type testCase struct {
+        Cookie *httpexpect.Cookie
+        ExpectedLength int
+    }
+
+    testCases := []testCase{
+        {
+            Cookie: adminCookie,
+            ExpectedLength: 2,
+        },
+        {
+            Cookie: noAdminCookie,
+            ExpectedLength: 1,
+        },
+    }
+
+    for _, tc := range testCases {
+        obj := e.GET("/api/v1/view/templates/preset").
+        WithCookie(adminCookie.Raw().Name, adminCookie.Raw().Value).
+        Expect().
+        Status(http.StatusOK)
+
+        if tc.Cookie == adminCookie {
+            templates = obj.JSON().Object().ContainsKey("templates")
+        }
+
+        obj.JSON().Array().Length().IsEqual(tc.ExpectedLength)
+    }
 }
 
 func ViewCustomTemplatesEndpoint(t *testing.T) {
@@ -199,14 +222,35 @@ func ViewPodsEndpoint(t *testing.T) {
 }
 
 func AdminGetPodsEndpoint(t *testing.T) {
+    type testCase struct {
+        Cookie *httpexpect.Cookie
+        ExpectedStatus int
+    }
+
+    testCases := []testCase{
+        {
+            Cookie: adminCookie,
+            ExpectedStatus: http.StatusOK,
+        },
+        {
+            Cookie: noAdminCookie,
+            ExpectedStatus: http.StatusForbidden,
+        },
+    }
+
     pod := pods.Value("pods").Array().Value(0).Object()
     podName := pod.Value("Name").String().Raw()
 
-    e.GET("/api/v1/admin/view/pods").
-    WithCookie(adminCookie.Raw().Name, adminCookie.Raw().Value).
-    Expect().
-    Status(http.StatusOK).
-    JSON().Array().Value(0).Object().ContainsKey("Name").HasValue("Name", podName)
+    for _, tc := range testCases {
+        obj := e.GET("/api/v1/admin/view/pods").
+        WithCookie(tc.Cookie.Raw().Name, tc.Cookie.Raw().Value).
+        Expect().
+        Status(tc.ExpectedStatus)
+
+        if tc.ExpectedStatus == http.StatusOK {
+            obj.JSON().Array().Value(0).Object().HasValue("Name", podName)
+        }
+    }
 }
 
 func DeletePodEndpoint(t *testing.T) {
