@@ -183,13 +183,14 @@ func ViewPresetTemplatesEndpoint(t *testing.T) {
         obj := e.GET("/api/v1/view/templates/preset").
         WithCookie(adminCookie.Raw().Name, adminCookie.Raw().Value).
         Expect().
-        Status(http.StatusOK)
+        Status(http.StatusOK).
+        JSON().Object()
 
         if tc.Cookie == adminCookie {
-            templates = obj.JSON().Object().ContainsKey("templates")
+            templates = obj.ContainsKey("templates")
         }
 
-        obj.JSON().Array().Length().IsEqual(tc.ExpectedLength)
+        obj.Value("templates").Array().Length().IsEqual(tc.ExpectedLength)
     }
 }
 
