@@ -180,29 +180,143 @@ func CheckConfig(conf *Config) error {
 		return errors.New("illegal config: vCenterPassword must be defined")
 	}
 	if conf.VCenterConfig.Datacenter == "" {
-		return errors.New("illegal config: Datacenter must be defined")
+        return errors.New("illegal config: Datacenter must be defined")
 	}
 	if conf.VCenterConfig.PresetTemplateResourcePool == "" {
-		return errors.New("illegal config: PresetTemplateResourcePool must be defined")
+        conf.VCenterConfig.PresetTemplateResourcePool = "07-01_Templates"
 	}
 	if conf.VCenterConfig.MainDistributedSwitch == "" {
-		return errors.New("illegal config: MainDistributedSwitch must be defined")
+        conf.VCenterConfig.MainDistributedSwitch = "Main_DSW"
 	}
 
 	if conf.VCenterConfig.StartingPortGroup == 0 || conf.VCenterConfig.EndingPortGroup == 0 {
-		return errors.New("illegal config: StartingPortGroup and EndingPortGroup must be defined")
+        conf.VCenterConfig.StartingPortGroup = 1801
+        conf.VCenterConfig.EndingPortGroup = 2000
 	}
 	if conf.Port == 0 {
-		conf.Port = 80
+		conf.Port = 8080
 	}
 
 	if conf.VCenterConfig.MaxPodLimit == 0 {
-		return errors.New("illegal config: MaxPodLimit must be more than 0")
+        conf.VCenterConfig.MaxPodLimit = 5
 	}
 
 	if conf.Fqdn == "" {
 		return errors.New("illegal config: Must set FQDN")
 	}
+
+    if conf.Domain == "" {
+        return errors.New("illegal config: Must set Domain")
+    }
+
+    if conf.LogPath == "" {
+        conf.LogPath = "/var/log/goclone"
+    }
+
+    if conf.VCenterConfig.CompetitionStartPortGroup == 0 || conf.VCenterConfig.CompetitionEndPortGroup == 0 {
+        conf.VCenterConfig.CompetitionStartPortGroup = 2001
+        conf.VCenterConfig.CompetitionEndPortGroup = 2200
+    }
+
+    if conf.VCenterConfig.CompetitionNetworkID == "" {
+        conf.VCenterConfig.CompetitionNetworkID = "172.26.0.0/16"
+    }
+
+    if conf.VCenterConfig.CompetitionResourcePool == "" {
+        conf.VCenterConfig.CompetitionResourcePool = "07-03_CompetitionPods"
+    }
+
+    if conf.VCenterConfig.CompetitionWanPortGroup == "" {
+        conf.VCenterConfig.CompetitionWanPortGroup = "0041_RvB2CoreNetwork"
+    }
+
+    if conf.VCenterConfig.DefaultNetworkID == "" {
+        conf.VCenterConfig.DefaultNetworkID = "172.16.0.0/16"
+    }
+
+    if conf.VCenterConfig.DefaultWanPortGroup == "" {
+        conf.VCenterConfig.DefaultWanPortGroup = "0040_RvBCoreNetwork"
+    }
+
+    if conf.VCenterConfig.DestinationFolder == "" {
+        return errors.New("illegal config: DestinationFolder must be defined")
+    }
+
+    if conf.VCenterConfig.Datastore == "" {
+        return errors.New("illegal config: Datastore must be defined")
+    }
+
+    if conf.VCenterConfig.NattedRouterPath == "" {
+        return errors.New("illegal config: NattedRouterPath must be defined")
+    }
+
+    if conf.VCenterConfig.RouterPath == "" {
+        return errors.New("illegal config: RouterPath must be defined")
+    }
+
+    if conf.VCenterConfig.RouterProgram == "" {
+        return errors.New("illegal config: RouterProgram must be defined")
+    }
+
+    if conf.VCenterConfig.RouterProgramArgs == "" {
+        return errors.New("illegal config: RouterProgramArgs must be defined")
+    }
+
+    if conf.VCenterConfig.TargetResourcePool == "" {
+        return errors.New("illegal config: TargetResourcePool must be defined")
+    }
+
+    if conf.VCenterConfig.TemplateFolder == "" {
+        return errors.New("illegal config: TemplateFolder must be defined")
+    }
+
+    if conf.VCenterConfig.PortGroupSuffix == "" {
+        conf.VCenterConfig.PortGroupSuffix = "PodNetwork"
+    }
+
+    if conf.VCenterConfig.RouterUsername == "" {
+        return errors.New("illegal config: RouterUsername must be defined")
+    }
+
+    if conf.VCenterConfig.RouterPassword == "" {
+        return errors.New("illegal config: RouterPassword must be defined")
+    }
+
+    if conf.VCenterConfig.CloneRole == "" {
+        return errors.New("illegal config: CloneRole must be defined")
+    }
+
+    if conf.VCenterConfig.CustomCloneRole == "" {
+        return errors.New("illegal config: CustomCloneRole must be defined")
+    }
+
+    if conf.LdapConfig.BaseDN == "" {
+        return errors.New("illegal config: LDAP_BASE_DN must be defined")
+    }
+
+    if conf.LdapConfig.BindDN == "" {
+        return errors.New("illegal config: LDAP_BIND_DN must be defined")
+    }
+
+    if conf.LdapConfig.BindPassword == "" {
+        return errors.New("illegal config: LDAP_BIND_PASSWORD must be defined")
+    }
+
+    if conf.LdapConfig.GroupDN == "" {
+        return errors.New("illegal config: LDAP_GROUP_DN must be defined")
+    }
+
+    if conf.LdapConfig.URL == "" {
+        return errors.New("illegal config: LDAP_URL must be defined")
+    }
+
+    if conf.LdapConfig.UserAttribute == "" {
+        return errors.New("illegal config: LDAP_USER_ATTRIBUTE must be defined")
+    }
+
+    if conf.LdapConfig.UsersDN == "" {
+        return errors.New("illegal config: LDAP_USERS_DN must be defined")
+    }
 
 	return nil
 }

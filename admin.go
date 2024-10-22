@@ -397,3 +397,22 @@ func bulkPowerPods(filter []string, state bool) ([]string, error) {
 
     return failed, nil
 }
+
+func adminDeleteUser(c *gin.Context) {
+    username := c.Param("username")
+
+    ldapClient := Client{}
+    err := ldapClient.Connect()
+    if err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+        return
+    }
+
+    err = ldapClient.DeleteUser(username)
+    if err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+        return
+    }
+
+    c.JSON(http.StatusOK, gin.H{"message": "User deleted successfully!"})
+}

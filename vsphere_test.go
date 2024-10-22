@@ -1,203 +1,272 @@
 package main
 
 import (
-	"net/http"
-	"os"
-	"testing"
+    "net/http"
+    "os"
+    "testing"
 
-	"github.com/gavv/httpexpect/v2"
-	"github.com/gin-contrib/sessions"
-	"github.com/gin-contrib/sessions/cookie"
-	"github.com/gin-gonic/gin"
+    "github.com/gavv/httpexpect/v2"
+    "github.com/gin-contrib/sessions"
+    "github.com/gin-contrib/sessions/cookie"
+    "github.com/gin-gonic/gin"
 )
 
 var (
-	router *gin.Engine
-	c      *httpexpect.Cookie
-	pods   *httpexpect.Object
+    router        *gin.Engine
+    adminCookie   *httpexpect.Cookie
+    noAdminCookie *httpexpect.Cookie
+    pods          *httpexpect.Object
+    templates     *httpexpect.Object
+    e             *httpexpect.Expect
 )
 
 func init() {
-	gin.SetMode(gin.TestMode)
-	router = gin.Default()
-	router.MaxMultipartMemory = 8 << 20
+    gin.SetMode(gin.TestMode)
+    router = gin.Default()
+    router.MaxMultipartMemory = 8 << 20
 
-	session := sessions.Sessions("kamino", cookie.NewStore([]byte("kamino")))
-	router.Use(session)
+    session := sessions.Sessions("kamino", cookie.NewStore([]byte("kamino")))
+    router.Use(session)
 
-	public := router.Group("/api/v1")
-	addPublicRoutes(public)
+    public := router.Group("/api/v1")
+    addPublicRoutes(public)
 
-	private := router.Group("/api/v1")
-	private.Use(authRequired)
-	addPrivateRoutes(private)
+    private := router.Group("/api/v1")
+    private.Use(authRequired)
+    addPrivateRoutes(private)
 
-	admin := router.Group("/api/v1/admin")
-	admin.Use(adminRequired)
-	addAdminRoutes(admin)
+    admin := router.Group("/api/v1/admin")
+    admin.Use(adminRequired)
+    addAdminRoutes(admin)
 }
 
-func TestHealth(t *testing.T) {
-	e := httpexpect.WithConfig(httpexpect.Config{
-		Client: &http.Client{
-			Transport: httpexpect.NewBinder(router),
-			Jar:       httpexpect.NewCookieJar(),
-		},
-		Reporter: httpexpect.NewAssertReporter(t),
-		Printers: []httpexpect.Printer{
-			httpexpect.NewDebugPrinter(t, true),
-		},
-	})
+func TestAPI(t *testing.T) {
+    e = httpexpect.WithConfig(httpexpect.Config{
+        Client: &http.Client{
+            Transport: httpexpect.NewBinder(router),
+            Jar:       httpexpect.NewCookieJar(),
+        },
+        Reporter: httpexpect.NewAssertReporter(t),
+        Printers: []httpexpect.Printer{
+            httpexpect.NewDebugPrinter(t, true),
+        },
+    })
 
-	e.GET("/api/v1/health").
-		Expect().
-		Status(http.StatusOK).
-		JSON().Object().HasValue("status", "ok")
+    testFuncs := []struct {
+        Name string
+        Test func(t *testing.T)
+    }{
+        {
+            Name: "HealthEndpoint",
+            Test: HealthEndpoint,
+        },
+        {
+            Name: "RegisterEndpoint",
+            Test: RegisterEndpoint,
+        },
+        {
+            Name: "LoginEndpoint",
+            Test: LoginEndpoint,
+        },
+        {
+            Name: "ViewPresetTemplatesEndpoint",
+            Test: ViewPresetTemplatesEndpoint,
+        },
+        {
+            Name: "ViewCustomTemplatesEndpoint",
+            Test: ViewCustomTemplatesEndpoint,
+        },
+        {
+            Name: "TemplateCloneEndpoint",
+            Test: TemplateCloneEndpoint,
+        },
+        {
+            Name: "ViewPodsEndpoint",
+            Test: ViewPodsEndpoint,
+        },
+        {
+            Name: "AdminGetPodsEndpoint",
+            Test: AdminGetPodsEndpoint,
+        },
+        {
+            Name: "DeletePodEndpoint",
+            Test: DeletePodEndpoint,
+        },
+        {
+            Name: "DeleteUserEndpoint",
+            Test: DeleteUserEndpoint,
+        },
+    }
+
+    for _, testFunc := range testFuncs {
+        t.Run(testFunc.Name, testFunc.Test)
+    }
 }
 
-func TestLogin(t *testing.T) {
-	e := httpexpect.WithConfig(httpexpect.Config{
-		Client: &http.Client{
-			Transport: httpexpect.NewBinder(router),
-			Jar:       httpexpect.NewCookieJar(),
-		},
-		Reporter: httpexpect.NewAssertReporter(t),
-		Printers: []httpexpect.Printer{
-			httpexpect.NewDebugPrinter(t, true),
-		},
-	})
-
-	userName := os.Getenv("VCENTER_USERNAME")
-	password := os.Getenv("VCENTER_PASSWORD")
-
-	c = e.POST("/api/v1/login").
-		WithJSON(map[string]interface{}{
-			"username": userName,
-			"password": password,
-		}).
-		Expect().
-		Status(http.StatusOK).
-		Cookie("kamino")
-
+func HealthEndpoint(t *testing.T) {
+    e.GET("/api/v1/health").
+    Expect().
+    Status(http.StatusOK).
+    JSON().Object().HasValue("status", "ok")
 }
 
-func TestViewPresetTemplates(t *testing.T) {
-	e := httpexpect.WithConfig(httpexpect.Config{
-		Client: &http.Client{
-			Transport: httpexpect.NewBinder(router),
-			Jar:       httpexpect.NewCookieJar(),
-		},
-		Reporter: httpexpect.NewAssertReporter(t),
-		Printers: []httpexpect.Printer{
-			httpexpect.NewDebugPrinter(t, true),
-		},
-	})
-
-	e.GET("/api/v1/view/templates/preset").
-		WithCookie(c.Raw().Name, c.Raw().Value).
-		Expect().
-		Status(http.StatusOK).
-		JSON().Object().ContainsKey("templates")
+func RegisterEndpoint(t *testing.T) {
+    e.POST("/api/v1/register").
+    WithJSON(map[string]interface{}{
+        "username": "goclone_test",
+        "password": os.Getenv("VCENTER_PASSWORD"),
+    }).
+    Expect().
+    Status(http.StatusOK)
 }
 
-func TestViewCustomTemplates(t *testing.T) {
-	e := httpexpect.WithConfig(httpexpect.Config{
-		Client: &http.Client{
-			Transport: httpexpect.NewBinder(router),
-			Jar:       httpexpect.NewCookieJar(),
-		},
-		Reporter: httpexpect.NewAssertReporter(t),
-		Printers: []httpexpect.Printer{
-			httpexpect.NewDebugPrinter(t, true),
-		},
-	})
+func LoginEndpoint(t *testing.T) {
+    type testCase struct {
+        Username string
+        Password string
+        ExpectedStatus int
+    } 
 
-	e.GET("/api/v1/view/templates/custom").
-		WithCookie(c.Raw().Name, c.Raw().Value).
-		Expect().
-		Status(http.StatusOK).
-		JSON().Object().ContainsKey("templates")
+    testCases := []testCase{
+        {
+            Username: "adsfjasdkljfaalkajdsfhasjhdfdshj",
+            Password: "adskjfalkdjfalksdjlfajdflajd",
+            ExpectedStatus: http.StatusBadRequest,
+        },
+        {
+            Username: os.Getenv("VCENTER_USERNAME"),
+            Password: os.Getenv("VCENTER_PASSWORD"),
+            ExpectedStatus: http.StatusOK,
+        },
+        {
+            Username: "goclone_test",
+            Password: os.Getenv("VCENTER_PASSWORD"),
+            ExpectedStatus: http.StatusOK,
+        },
+    }
+
+    for _, tc := range testCases {
+        resp := e.POST("/api/v1/login").
+        WithJSON(map[string]interface{}{
+            "username": tc.Username,
+            "password": tc.Password,
+        }).
+        Expect().
+        Status(tc.ExpectedStatus)
+        if tc.ExpectedStatus == http.StatusOK && tc.Username == os.Getenv("VCENTER_USERNAME") {
+            adminCookie = resp.Cookie("kamino")
+        }
+        if tc.ExpectedStatus == http.StatusOK && tc.Username == "goclone_test" {
+            noAdminCookie = resp.Cookie("kamino")
+        }
+    }
 }
 
-func TestTemplateClone(t *testing.T) {
-	e := httpexpect.WithConfig(httpexpect.Config{
-		Client: &http.Client{
-			Transport: httpexpect.NewBinder(router),
-			Jar:       httpexpect.NewCookieJar(),
-		},
-		Reporter: httpexpect.NewAssertReporter(t),
-		Printers: []httpexpect.Printer{
-			httpexpect.NewDebugPrinter(t, true),
-		},
-	})
+func ViewPresetTemplatesEndpoint(t *testing.T) {
+    type testCase struct {
+        Cookie *httpexpect.Cookie
+        ExpectedLength int
+    }
 
-	e.POST("/api/v1/pod/clone/template").
-		WithCookie(c.Raw().Name, c.Raw().Value).
-		WithJSON(map[string]interface{}{
-			"template": "CPTC-Web",
-		}).
-		Expect().
-		Status(http.StatusOK)
+    testCases := []testCase{
+        {
+            Cookie: adminCookie,
+            ExpectedLength: 2,
+        },
+        {
+            Cookie: noAdminCookie,
+            ExpectedLength: 1,
+        },
+    }
+
+    for _, tc := range testCases {
+        obj := e.GET("/api/v1/view/templates/preset").
+        WithCookie(tc.Cookie.Raw().Name, tc.Cookie.Raw().Value).
+        Expect().
+        Status(http.StatusOK).
+        JSON().Object()
+
+        if tc.Cookie == adminCookie {
+            templates = obj.ContainsKey("templates")
+        }
+
+        obj.Value("templates").Array().Length().IsEqual(tc.ExpectedLength)
+    }
 }
 
-func TestViewPods(t *testing.T) {
-	e := httpexpect.WithConfig(httpexpect.Config{
-		Client: &http.Client{
-			Transport: httpexpect.NewBinder(router),
-			Jar:       httpexpect.NewCookieJar(),
-		},
-		Reporter: httpexpect.NewAssertReporter(t),
-		Printers: []httpexpect.Printer{
-			httpexpect.NewDebugPrinter(t, true),
-		},
-	})
-
-	pods = e.GET("/api/v1/view/pods").
-		WithCookie(c.Raw().Name, c.Raw().Value).
-		Expect().
-		Status(http.StatusOK).
-		JSON().Object().ContainsKey("pods")
+func ViewCustomTemplatesEndpoint(t *testing.T) {
+    e.GET("/api/v1/view/templates/custom").
+    WithCookie(adminCookie.Raw().Name, adminCookie.Raw().Value).
+    Expect().
+    Status(http.StatusOK).
+    JSON().Object().ContainsKey("templates")
 }
 
-func TestAdminGetPods(t *testing.T) {
-	e := httpexpect.WithConfig(httpexpect.Config{
-		Client: &http.Client{
-			Transport: httpexpect.NewBinder(router),
-			Jar:       httpexpect.NewCookieJar(),
-		},
-		Reporter: httpexpect.NewAssertReporter(t),
-		Printers: []httpexpect.Printer{
-			httpexpect.NewDebugPrinter(t, true),
-		},
-	})
+func TemplateCloneEndpoint(t *testing.T) {
+    templateName := templates.Value("templates").Array().Value(0).String().Raw()
 
-	pod := pods.Value("pods").Array().Value(0).Object()
-	podName := pod.Value("Name").String().Raw()
-
-	e.GET("/api/v1/admin/view/pods").
-		WithCookie(c.Raw().Name, c.Raw().Value).
-		Expect().
-		Status(http.StatusOK).
-		JSON().Array().Value(0).Object().ContainsKey("Name").HasValue("Name", podName)
+    e.POST("/api/v1/pod/clone/template").
+    WithCookie(adminCookie.Raw().Name, adminCookie.Raw().Value).
+    WithJSON(map[string]interface{}{
+        "template": templateName,
+    }).
+    Expect().
+    Status(http.StatusOK)
 }
 
-func TestDeletePod(t *testing.T) {
-	e := httpexpect.WithConfig(httpexpect.Config{
-		Client: &http.Client{
-			Transport: httpexpect.NewBinder(router),
-			Jar:       httpexpect.NewCookieJar(),
-		},
-		Reporter: httpexpect.NewAssertReporter(t),
-		Printers: []httpexpect.Printer{
-			httpexpect.NewDebugPrinter(t, true),
-		},
-	})
+func ViewPodsEndpoint(t *testing.T) {
+    pods = e.GET("/api/v1/view/pods").
+    WithCookie(adminCookie.Raw().Name, adminCookie.Raw().Value).
+    Expect().
+    Status(http.StatusOK).
+    JSON().Object().ContainsKey("pods")
+}
 
-	pod := pods.Value("pods").Array().Value(0).Object()
-	podName := pod.Value("Name").String().Raw()
+func AdminGetPodsEndpoint(t *testing.T) {
+    type testCase struct {
+        Cookie *httpexpect.Cookie
+        ExpectedStatus int
+    }
 
-	e.DELETE("/api/v1/pod/delete/"+podName).
-		WithCookie(c.Raw().Name, c.Raw().Value).
-		Expect().
-		Status(http.StatusOK)
+    testCases := []testCase{
+        {
+            Cookie: adminCookie,
+            ExpectedStatus: http.StatusOK,
+        },
+        {
+            Cookie: noAdminCookie,
+            ExpectedStatus: http.StatusUnauthorized,
+        },
+    }
+
+    pod := pods.Value("pods").Array().Value(0).Object()
+    podName := pod.Value("Name").String().Raw()
+
+    for _, tc := range testCases {
+        obj := e.GET("/api/v1/admin/view/pods").
+        WithCookie(tc.Cookie.Raw().Name, tc.Cookie.Raw().Value).
+        Expect().
+        Status(tc.ExpectedStatus)
+
+        if tc.ExpectedStatus == http.StatusOK {
+            obj.JSON().Array().Value(0).Object().HasValue("Name", podName)
+        }
+    }
+}
+
+func DeletePodEndpoint(t *testing.T) {
+    pod := pods.Value("pods").Array().Value(0).Object()
+    podName := pod.Value("Name").String().Raw()
+
+    e.DELETE("/api/v1/pod/delete/"+podName).
+    WithCookie(adminCookie.Raw().Name, adminCookie.Raw().Value).
+    Expect().
+    Status(http.StatusOK)
+}
+
+func DeleteUserEndpoint(t *testing.T) {
+    e.DELETE("/api/v1/admin/user/delete/goclone_test").
+    WithCookie(adminCookie.Raw().Name, adminCookie.Raw().Value).
+    Expect().
+    Status(http.StatusOK)
 }

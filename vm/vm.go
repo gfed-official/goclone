@@ -71,6 +71,19 @@ func (vm *VM) SetSnapshot(name string) error {
     return nil
 }
 
+func (vm *VM) RemoveSnapshot(name string) error {
+    vmObj := object.NewVirtualMachine(vm.Client, vm.Ref.Reference())
+    task, err := vmObj.RemoveSnapshot(*vm.Ctx, name, true, types.NewBool(true))
+    if err != nil {
+        return err
+    }
+    err = task.Wait(*vm.Ctx)
+    if err != nil {
+        return err
+    }
+    return nil
+}
+
 func (vm *VM) RevertSnapshot(name string) error {
     vmObj := object.NewVirtualMachine(vm.Client, vm.Ref.Reference())
     task, err := vmObj.RevertToSnapshot(*vm.Ctx, name, true)
