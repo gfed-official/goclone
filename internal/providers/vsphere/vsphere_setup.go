@@ -1,13 +1,12 @@
-package main
+package vsphere
 
 import (
 	"context"
 	"fmt"
-	"io"
+	"goclone/internal/config"
 	"log"
 	"net/url"
 
-	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
 	"github.com/vmware/govmomi"
 	"github.com/vmware/govmomi/find"
@@ -16,9 +15,6 @@ import (
 	"github.com/vmware/govmomi/vim25/mo"
 	"github.com/vmware/govmomi/vim25/soap"
 	"github.com/vmware/govmomi/vim25/types"
-
-	"goclone/config"
-	"os"
 )
 
 type VSphereClient struct {
@@ -51,18 +47,7 @@ var (
 	competitionResourcePool *object.ResourcePool
 )
 
-func init() {
-	// setup config
-
-	config.ReadConfigFromEnv(mainConfig)
-	err := config.CheckConfig(mainConfig)
-	if err != nil {
-		log.Fatalln(errors.Wrap(err, "illegal config"))
-	}
-
-	vCenterConfig = mainConfig.VCenterConfig
-	ldapConfig = mainConfig.LdapConfig
-
+func NewVSphereProvider() *VSphereClient {
 	// setup vSphere client
 	u, err := soap.ParseURL(vCenterConfig.VCenterURL)
 	if err != nil {
@@ -96,59 +81,9 @@ func init() {
 		}
 	}
 
-	fmt.Fprintln(os.Stdout, []any{"Initialized"}...)
-}
-
-func main() {
 	go refreshSession()
 
-	//setup logging
-	gin.SetMode(gin.ReleaseMode)
-
-	f, err := os.OpenFile(mainConfig.LogPath, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
-	if err != nil {
-		log.Fatal(errors.Wrap(err, "failed to open log file"))
-	}
-	defer f.Close()
-
-	log.SetOutput(f)
-	gin.DefaultWriter = io.MultiWriter(f)
-
-	// setup router
-	router := gin.Default()
-	router.Use(CORSMiddleware())
-	router.MaxMultipartMemory = 8 << 20 // 8Mib
-	initCookies(router)
-
-	public := router.Group("/api/v1")
-	addPublicRoutes(public)
-
-	private := router.Group("/api/v1")
-	private.Use(authRequired)
-	addPrivateRoutes(private)
-
-	admin := router.Group("/api/v1/admin")
-	admin.Use(authRequired, adminRequired)
-	addAdminRoutes(admin)
-
-	log.Fatalln(router.Run(":" + fmt.Sprint(mainConfig.Port)))
-}
-
-func CORSMiddleware() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		c.Writer.Header().Set("Content-Type", "application/json")
-		c.Writer.Header().Set("Access-Control-Allow-Origin", mainConfig.Fqdn)
-		c.Writer.Header().Set("Access-Control-Max-Age", "86400")
-		c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
-		c.Writer.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
-		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, Origin")
-
-		if c.Request.Method == "OPTIONS" {
-			c.AbortWithStatus(200)
-		}
-
-		c.Next()
-	}
+	return vSphereClient
 }
 
 func InitializeGovmomi() {
@@ -228,5 +163,4 @@ func InitializeGovmomi() {
 			noAccessRole = &role
 		}
 	}
-
 }

@@ -1,8 +1,9 @@
-package main
+package ldap
 
 import (
 	"crypto/tls"
 	"fmt"
+	"goclone/internal/config"
 	"strings"
 
 	ber "github.com/go-asn1-ber/asn1-ber"
@@ -15,22 +16,23 @@ const (
 	controlTypeLdapServerPolicyHintsDeprecated = "1.2.840.113556.1.4.2066"
 )
 
-type Client struct {
-	ldap ldap.Client
+type LdapClient struct {
+	ldap   ldap.Client
+	config *config.Auth
 }
 
 type ldapControlServerPolicyHints struct {
 	oid string
 }
 
-func (cl *Client) Connect() error {
+func (cl *LdapClient) Connect() error {
 	conn, err := cl.connect()
 	if err != nil {
 		return fmt.Errorf("Failed to connect to LDAP server: %v", err)
 	}
 
-	if ldapConfig.BindDN != "" {
-		err = conn.Bind(ldapConfig.BindDN, ldapConfig.BindPassword)
+	if cl.config.BindDN != "" {
+		err = conn.Bind(cl.config.BindDN, cl.config.BindPassword)
 		if err != nil {
 			return fmt.Errorf("Failed to bind to LDAP server: %v", err)
 		}
@@ -41,7 +43,21 @@ func (cl *Client) Connect() error {
 	return nil
 }
 
-func (cl *Client) registerUser(name, password string) error {
+func (cl *LdapClient) LoginValid(username, password string) (bool, error) {
+	userdn, err := cl.GetUserDN(username)
+	if err != nil {
+		return false, fmt.Errorf("Failed to get user DN: %v", err)
+	}
+
+	err = cl.ldap.Bind(userdn, password)
+	if err != nil {
+		return false, nil
+	}
+
+	return true, nil
+}
+
+func (cl *LdapClient) RegisterUser(name, password string) error {
 	dn, err := cl.CreateUser(name)
 	if err != nil {
 		return fmt.Errorf("Failed to create user: %v", err)
@@ -52,7 +68,7 @@ func (cl *Client) registerUser(name, password string) error {
 		return fmt.Errorf("Failed to set password: %v", err)
 	}
 
-	err = cl.AddToGroup(dn, ldapConfig.GroupDN)
+	err = cl.AddToGroup(dn, cl.config.GroupDN)
 	if err != nil {
 		return fmt.Errorf("Failed to add user to group: %v", err)
 	}
@@ -65,15 +81,15 @@ func (cl *Client) registerUser(name, password string) error {
 	return nil
 }
 
-func (cl *Client) connect() (ldap.Client, error) {
+func (cl *LdapClient) connect() (ldap.Client, error) {
 	var dialOpts []ldap.DialOpt
-	if strings.HasPrefix(ldapConfig.URL, "ldaps://") {
-		dialOpts = append(dialOpts, ldap.DialWithTLSConfig(&tls.Config{InsecureSkipVerify: ldapConfig.InsecureTLS, MinVersion: tls.VersionTLS12}))
+	if strings.HasPrefix(cl.config.URL, "ldaps://") {
+		dialOpts = append(dialOpts, ldap.DialWithTLSConfig(&tls.Config{InsecureSkipVerify: cl.config.InsecureTLS, MinVersion: tls.VersionTLS12}))
 	}
-	return ldap.DialURL(ldapConfig.URL, dialOpts...)
+	return ldap.DialURL(cl.config.URL, dialOpts...)
 }
 
-func (cl *Client) CreateUser(name string) (string, error) {
+func (cl *LdapClient) CreateUser(name string) (string, error) {
 	var attributes []ldap.Attribute
 
 	attributes = append(attributes, ldap.Attribute{
@@ -93,7 +109,7 @@ func (cl *Client) CreateUser(name string) (string, error) {
 		Vals: []string{"Registered by Goclone"},
 	})
 
-	dn := fmt.Sprintf("%s=%s,%s", ldapConfig.UserAttribute, name, ldapConfig.UsersDN)
+	dn := fmt.Sprintf("%s=%s,%s", cl.config.UserAttribute, name, cl.config.UsersDN)
 
 	req := ldap.AddRequest{
 		DN:         dn,
@@ -108,7 +124,7 @@ func (cl *Client) CreateUser(name string) (string, error) {
 	return dn, nil
 }
 
-func (cl *Client) AddToGroup(userdn, groupdn string) error {
+func (cl *LdapClient) AddToGroup(userdn, groupdn string) error {
 	req := ldap.NewModifyRequest(groupdn, nil)
 	req.Add("member", []string{userdn})
 	return cl.ldap.Modify(req)
@@ -145,7 +161,7 @@ func (c *ldapControlServerPolicyHints) String() string {
 	return "Enforce password history policies during password set: " + c.GetControlType()
 }
 
-func (cl *Client) SetPassword(userdn string, password string) error {
+func (cl *LdapClient) SetPassword(userdn string, password string) error {
 	// requires ldaps connection
 
 	utf16 := unicode.UTF16(unicode.LittleEndian, unicode.IgnoreBOM)
@@ -173,13 +189,13 @@ func (cl *Client) SetPassword(userdn string, password string) error {
 	return cl.ldap.Modify(passReq)
 }
 
-func (cl *Client) EnableAccount(userdn string) error {
+func (cl *LdapClient) EnableAccount(userdn string) error {
 	req := ldap.NewModifyRequest(userdn, nil)
 	req.Replace("userAccountControl", []string{"512"})
 	return cl.ldap.Modify(req)
 }
 
-func (cl *Client) SearchEntry(req *ldap.SearchRequest) (*ldap.Entry, error) {
+func (cl *LdapClient) SearchEntry(req *ldap.SearchRequest) (*ldap.Entry, error) {
 	res, err := cl.ldap.Search(req)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to search entry: %v", err)
@@ -190,16 +206,16 @@ func (cl *Client) SearchEntry(req *ldap.SearchRequest) (*ldap.Entry, error) {
 	return res.Entries[0], nil
 }
 
-func (cl *Client) Disconnect() error {
+func (cl *LdapClient) Disconnect() error {
 	if cl.ldap == nil {
 		return nil
 	}
 	return cl.ldap.Close()
 }
 
-func (cl *Client) GetUserDN(username string) (string, error) {
+func (cl *LdapClient) GetUserDN(username string) (string, error) {
 	req := ldap.NewSearchRequest(
-		ldapConfig.BaseDN,
+		cl.config.BaseDN,
 		ldap.ScopeWholeSubtree, ldap.NeverDerefAliases, 0, 0, false,
 		fmt.Sprintf("(&(objectClass=user)(%s=%s))", "sAMAccountName", username),
 		[]string{"dn"},
@@ -218,9 +234,9 @@ func (cl *Client) GetUserDN(username string) (string, error) {
 	return entry.DN, nil
 }
 
-func (cl *Client) IsAdmin(username string) (bool, error) {
+func (cl *LdapClient) IsAdmin(username string) (bool, error) {
 	req := ldap.NewSearchRequest(
-		ldapConfig.BaseDN,
+		cl.config.BaseDN,
 		ldap.ScopeWholeSubtree, ldap.NeverDerefAliases, 0, 0, false,
 		fmt.Sprintf("(&(objectClass=user)(%s=%s))", "sAMAccountName", username),
 		[]string{"adminCount"},
@@ -245,9 +261,9 @@ func (cl *Client) IsAdmin(username string) (bool, error) {
 	return false, nil
 }
 
-func (cl *Client) UserExists(username string) (bool, error) {
+func (cl *LdapClient) UserExists(username string) (bool, error) {
 	req := ldap.NewSearchRequest(
-		ldapConfig.BaseDN,
+		cl.config.BaseDN,
 		ldap.ScopeWholeSubtree, ldap.NeverDerefAliases, 0, 0, false,
 		fmt.Sprintf("(&(objectClass=user)(%s=%s))", "sAMAccountName", username),
 		[]string{"dn"},
@@ -262,17 +278,17 @@ func (cl *Client) UserExists(username string) (bool, error) {
 	return entry != nil, nil
 }
 
-func (cl *Client) DeleteUser(username string) error {
-    userdn, err := cl.GetUserDN(username)
-    if err != nil {
-        return fmt.Errorf("Failed to get user DN: %v", err)
-    }
+func (cl *LdapClient) DeleteUser(username string) error {
+	userdn, err := cl.GetUserDN(username)
+	if err != nil {
+		return fmt.Errorf("Failed to get user DN: %v", err)
+	}
 
-    req := ldap.NewDelRequest(userdn, nil)
-    err = cl.ldap.Del(req)
-    if err != nil {
-        return fmt.Errorf("Failed to delete user: %v", err)
-    }
+	req := ldap.NewDelRequest(userdn, nil)
+	err = cl.ldap.Del(req)
+	if err != nil {
+		return fmt.Errorf("Failed to delete user: %v", err)
+	}
 
-    return nil
+	return nil
 }

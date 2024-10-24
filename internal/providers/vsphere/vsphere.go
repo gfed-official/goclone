@@ -1,4 +1,4 @@
-package main
+package vsphere
 
 import (
 	"fmt"
@@ -10,7 +10,8 @@ import (
 	"sync"
 	"time"
 
-	"goclone/vm"
+	"goclone/internal/auth/ldap"
+	"goclone/internal/vsphere/vm"
 
 	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
@@ -46,7 +47,7 @@ type Template struct {
 }
 
 var (
-	availablePortGroups = &RWPortGroupMap{
+	AvailablePortGroups = &RWPortGroupMap{
 		Data: make(map[int]string),
 	}
 )
@@ -115,7 +116,7 @@ func vSpherePodLimit(username string) error {
 func vSphereGetPresetTemplates(username string) ([]string, error) {
 	var templates []string
 
-	ldapClient := Client{}
+	ldapClient := ldap.LdapClient{}
 	err := ldapClient.Connect()
 	defer ldapClient.Disconnect()
 
@@ -310,28 +311,28 @@ func TemplateClone(sourceRP, username string, portGroup int) error {
 	}
 
 	var vms []vm.VM
-    var router vm.VM
+	var router vm.VM
 	for _, v := range vmClones {
 		vmObj := object.NewVirtualMachine(vSphereClient.client, v.Reference())
-        vmName, err := vmObj.ObjectName(vSphereClient.ctx)
-        if err != nil {
-            log.Println(errors.Wrap(err, "Error getting VM name"))
-            return err
-        }
+		vmName, err := vmObj.ObjectName(vSphereClient.ctx)
+		if err != nil {
+			log.Println(errors.Wrap(err, "Error getting VM name"))
+			return err
+		}
 
-        isRouter := strings.Contains(vmName, "PodRouter")
-        newVM := vm.VM{
-            Name: vmName,
-            Ref: v.Reference(),
-            Ctx: &vSphereClient.ctx,
-            Client: vSphereClient.client,
-            IsRouter: isRouter,
-        }
+		isRouter := strings.Contains(vmName, "PodRouter")
+		newVM := vm.VM{
+			Name:     vmName,
+			Ref:      v.Reference(),
+			Ctx:      &vSphereClient.ctx,
+			Client:   vSphereClient.client,
+			IsRouter: isRouter,
+		}
 
-        if isRouter {
-            router = newVM
-        }
-        vms = append(vms, newVM)
+		if isRouter {
+			router = newVM
+		}
+		vms = append(vms, newVM)
 	}
 
 	var routerPG *object.DistributedVirtualPortgroup
@@ -342,17 +343,17 @@ func TemplateClone(sourceRP, username string, portGroup int) error {
 	}
 
 	if !templateMap[sourceRP].NoRouter {
-        err := router.PowerOn()
-        if err != nil {
-            log.Println(errors.Wrap(err, "Error powering on router"))
-            return err
-        }
+		err := router.PowerOn()
+		if err != nil {
+			log.Println(errors.Wrap(err, "Error powering on router"))
+			return err
+		}
 
-        err = router.ConfigureRouterNetworks(routerPG, pg.(*object.DistributedVirtualPortgroup), dvsMo)
-        if err != nil {
-            log.Println(errors.Wrap(err, "Error configuring router networks"))
-            return err
-        }
+		err = router.ConfigureRouterNetworks(routerPG, pg.(*object.DistributedVirtualPortgroup), dvsMo)
+		if err != nil {
+			log.Println(errors.Wrap(err, "Error configuring router networks"))
+			return err
+		}
 
 		if templateMap[sourceRP].Natted {
 			pgOctet, err := GetNatOctet(strconv.Itoa(portGroup))
@@ -386,16 +387,16 @@ func TemplateClone(sourceRP, username string, portGroup int) error {
 		}
 	}
 
-    wg := errgroup.Group{}
-    for _, vm := range vms {
-        wg.Go(func() error {
-            return vm.SetSnapshot("Base")
-        })
-    }
+	wg := errgroup.Group{}
+	for _, vm := range vms {
+		wg.Go(func() error {
+			return vm.SetSnapshot("Base")
+		})
+	}
 
-    if err := wg.Wait(); err != nil {
-        return errors.Wrap(err, "Error setting snapshot")
-    }
+	if err := wg.Wait(); err != nil {
+		return errors.Wrap(err, "Error setting snapshot")
+	}
 
 	permission := types.Permission{
 		Principal: strings.Join([]string{mainConfig.Domain, username}, "\\"),
@@ -404,12 +405,12 @@ func TemplateClone(sourceRP, username string, portGroup int) error {
 	}
 	AssignPermissionToObjects(&permission, []types.ManagedObjectReference{newFolder.Reference()})
 
-    hiddenVMs := []vm.VM{}
-    for _, vm := range templateMap[sourceRP].VMs {
-        if vm.IsHidden {
-            hiddenVMs = append(hiddenVMs, vm)
-        }
-    }
+	hiddenVMs := []vm.VM{}
+	for _, vm := range templateMap[sourceRP].VMs {
+		if vm.IsHidden {
+			hiddenVMs = append(hiddenVMs, vm)
+		}
+	}
 
 	HideVMs(hiddenVMs, username)
 
@@ -430,49 +431,49 @@ func CustomClone(podName string, vmsToClone []string, natted bool, username stri
 			log.Println(errors.Wrap(err, "Error finding VM"))
 			return err
 		}
-        vmName, err := vmObj.ObjectName(vSphereClient.ctx)
-        if err != nil {
-            log.Println(errors.Wrap(err, "Error getting VM name"))
-            return err
-        }
+		vmName, err := vmObj.ObjectName(vSphereClient.ctx)
+		if err != nil {
+			log.Println(errors.Wrap(err, "Error getting VM name"))
+			return err
+		}
 
-        newVM := vm.VM{
-            Name: vmName,
-            Ref: vmObj.Reference(),
-            Ctx: &vSphereClient.ctx,
-            Client: vSphereClient.client,
-            IsRouter: strings.Contains(vmName, "PodRouter"),
-        }
+		newVM := vm.VM{
+			Name:     vmName,
+			Ref:      vmObj.Reference(),
+			Ctx:      &vSphereClient.ctx,
+			Client:   vSphereClient.client,
+			IsRouter: strings.Contains(vmName, "PodRouter"),
+		}
 		vms = append(vms, newVM)
 	}
 
 	pgStr := strconv.Itoa(portGroup)
 	CloneVMsFromTemplates(vms, newFolder, targetRP.Reference(), datastore.Reference(), pg.Reference(), pgStr)
 
-    hasRouter := false
-    for _, vm := range vms {
-        if vm.IsRouter {
-            hasRouter = true
-            break
-        }
-    }
+	hasRouter := false
+	for _, vm := range vms {
+		if vm.IsRouter {
+			hasRouter = true
+			break
+		}
+	}
 
-    router := vm.VM{}
-    if !hasRouter && natted {
-        router, err := CreateRouter(targetRP.Reference(), datastore.Reference(), newFolder, natted, podName)
-        if err != nil {
-            log.Println(errors.Wrap(err, "Error creating router"))
-            return err
-        }
-        newVM := vm.VM{
-            Name: router.Name,
-            Ref: router.Reference(),
-            Ctx: &vSphereClient.ctx,
-            Client: vSphereClient.client, 
-            IsRouter: true,
-        }
-        vms = append(vms, newVM)
-    }
+	router := vm.VM{}
+	if !hasRouter && natted {
+		router, err := CreateRouter(targetRP.Reference(), datastore.Reference(), newFolder, natted, podName)
+		if err != nil {
+			log.Println(errors.Wrap(err, "Error creating router"))
+			return err
+		}
+		newVM := vm.VM{
+			Name:     router.Name,
+			Ref:      router.Reference(),
+			Ctx:      &vSphereClient.ctx,
+			Client:   vSphereClient.client,
+			IsRouter: true,
+		}
+		vms = append(vms, newVM)
+	}
 
 	if natted {
 		pgOctet, err := GetNatOctet(strconv.Itoa(portGroup))
@@ -500,16 +501,16 @@ func CustomClone(podName string, vmsToClone []string, natted bool, username stri
 		}
 	}
 
-    wg := errgroup.Group{}
-    for _, vm := range vms {
-        wg.Go(func() error {
-            return vm.SetSnapshot("Base")
-        })
-    }
+	wg := errgroup.Group{}
+	for _, vm := range vms {
+		wg.Go(func() error {
+			return vm.SetSnapshot("Base")
+		})
+	}
 
-    if err := wg.Wait(); err != nil {
-        return errors.Wrap(err, "Error setting snapshot")
-    }
+	if err := wg.Wait(); err != nil {
+		return errors.Wrap(err, "Error setting snapshot")
+	}
 
 	permission := types.Permission{
 		Principal: strings.Join([]string{mainConfig.Domain, username}, "\\"),
@@ -613,7 +614,7 @@ func LoadTemplates() error {
 		}
 		template, err := LoadTemplate(rp, rpName)
 		if err != nil {
-            templateMap[rpName] = Template{}
+			templateMap[rpName] = Template{}
 			log.Println(errors.Wrap(err, "Error loading template"))
 		}
 		templateMap[rpName] = template
@@ -676,7 +677,7 @@ func LoadTemplate(rp *object.ResourcePool, name string) (Template, error) {
 		}
 	}
 
-    vmList := []vm.VM{}
+	vmList := []vm.VM{}
 	if err != nil {
 		log.Println(errors.Wrap(err, "Error getting VM guest OS"))
 		return Template{}, err
@@ -690,51 +691,51 @@ func LoadTemplate(rp *object.ResourcePool, name string) (Template, error) {
 			return Template{}, err
 		}
 
-        username := ""
-        password := ""
-        isHidden := ""
-        attrs, err := GetAllAttributes(v.Reference())
-        for key, value := range attrs {
-            switch key {
-            case "goclone.vm.username":
-                username = value
-            case "goclone.vm.password":
-                password = value
-            case "goclone.vm.isHidden":
-                isHidden = value
-            }
-        }
-        newVM := vm.VM{
-            Name: vmName,
-            Ref: v.Reference(),
-            Ctx: &vSphereClient.ctx,
-            Client: vSphereClient.client,
-            Username: username,
-            Password: password,
-            IsRouter: strings.Contains(vmName, "PodRouter"),
-            IsHidden: strings.Contains(strings.ToLower(isHidden), "true"),
-            GuestOS: v.Config.GuestFullName,
-        }
-        vmList = append(vmList, newVM)
+		username := ""
+		password := ""
+		isHidden := ""
+		attrs, err := GetAllAttributes(v.Reference())
+		for key, value := range attrs {
+			switch key {
+			case "goclone.vm.username":
+				username = value
+			case "goclone.vm.password":
+				password = value
+			case "goclone.vm.isHidden":
+				isHidden = value
+			}
+		}
+		newVM := vm.VM{
+			Name:     vmName,
+			Ref:      v.Reference(),
+			Ctx:      &vSphereClient.ctx,
+			Client:   vSphereClient.client,
+			Username: username,
+			Password: password,
+			IsRouter: strings.Contains(vmName, "PodRouter"),
+			IsHidden: strings.Contains(strings.ToLower(isHidden), "true"),
+			GuestOS:  v.Config.GuestFullName,
+		}
+		vmList = append(vmList, newVM)
 	}
 
-    wg := errgroup.Group{}
-    for _, vm := range vmList {
-        wg.Go(func() error {
-            vmObj := object.NewVirtualMachine(vSphereClient.client, vm.Ref.Reference())
-            if snap, _ := vmObj.FindSnapshot(vSphereClient.ctx, "SnapshotForCloning"); snap != nil {
-                err = vm.RemoveSnapshot("SnapshotForCloning")
-                if err != nil {
-                    return err
-                }
-            }
-            return vm.SetSnapshot("SnapshotForCloning")
-        },)
-    }
+	wg := errgroup.Group{}
+	for _, vm := range vmList {
+		wg.Go(func() error {
+			vmObj := object.NewVirtualMachine(vSphereClient.client, vm.Ref.Reference())
+			if snap, _ := vmObj.FindSnapshot(vSphereClient.ctx, "SnapshotForCloning"); snap != nil {
+				err = vm.RemoveSnapshot("SnapshotForCloning")
+				if err != nil {
+					return err
+				}
+			}
+			return vm.SetSnapshot("SnapshotForCloning")
+		})
+	}
 
-    if err := wg.Wait(); err != nil {
-        return Template{}, errors.Wrap(err, "Error setting snapshot")
-    }
+	if err := wg.Wait(); err != nil {
+		return Template{}, errors.Wrap(err, "Error setting snapshot")
+	}
 
 	template := Template{
 		Name:           name,
