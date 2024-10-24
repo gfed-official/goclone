@@ -3,9 +3,15 @@ package ldap
 import (
 	"crypto/tls"
 	"fmt"
+	"goclone/internal/api/handlers"
 	"goclone/internal/config"
+	"net/http"
+	"regexp"
 	"strings"
+	uni "unicode"
 
+	"github.com/gin-contrib/sessions"
+	"github.com/gin-gonic/gin"
 	ber "github.com/go-asn1-ber/asn1-ber"
 	"github.com/go-ldap/ldap/v3"
 	"golang.org/x/text/encoding/unicode"
@@ -18,11 +24,15 @@ const (
 
 type LdapClient struct {
 	ldap   ldap.Client
-	config *config.Auth
+	config config.LdapProvider
 }
 
 type ldapControlServerPolicyHints struct {
 	oid string
+}
+
+func NewLdapManager(config config.LdapProvider) *LdapClient {
+    return &LdapClient{config: config}
 }
 
 func (cl *LdapClient) Connect() error {
@@ -31,8 +41,8 @@ func (cl *LdapClient) Connect() error {
 		return fmt.Errorf("Failed to connect to LDAP server: %v", err)
 	}
 
-	if cl.config.BindDN != "" {
-		err = conn.Bind(cl.config.BindDN, cl.config.BindPassword)
+	if cl.config.BindUser != "" {
+		err = conn.Bind(cl.config.BindUser, cl.config.BindPassword)
 		if err != nil {
 			return fmt.Errorf("Failed to bind to LDAP server: %v", err)
 		}
@@ -43,7 +53,50 @@ func (cl *LdapClient) Connect() error {
 	return nil
 }
 
-func (cl *LdapClient) LoginValid(username, password string) (bool, error) {
+func (cl *LdapClient) Login(c *gin.Context) {
+    var loginInfo map[string]interface{}
+    if err := c.BindJSON(&loginInfo); err != nil {
+        c.String(http.StatusBadRequest, "Bad Request")
+        return
+    }
+
+    username, ok := loginInfo["username"].(string)
+    if !ok {
+        c.String(http.StatusBadRequest, "Bad Request")
+        return
+    }
+
+    password, ok := loginInfo["password"].(string)
+    if !ok {
+        c.String(http.StatusBadRequest, "Bad Request")
+        return
+    }
+
+    err := cl.Connect()
+    if err != nil {
+        c.String(http.StatusInternalServerError, "Internal Server Error", err)
+        return
+    }
+
+    valid, err := cl.LoginReq(username, password)
+    if err != nil {
+        c.String(http.StatusInternalServerError, "Internal Server Error")
+        return
+    }
+
+    if !valid {
+        c.String(http.StatusUnauthorized, "Unauthorized")
+        return
+    }
+
+    session := sessions.Default(c)
+    session.Set("user", username)
+    session.Save()
+
+    c.JSON(http.StatusOK, gin.H{"message": "Logged in"})
+}
+
+func (cl *LdapClient) LoginReq(username, password string) (bool, error) {
 	userdn, err := cl.GetUserDN(username)
 	if err != nil {
 		return false, fmt.Errorf("Failed to get user DN: %v", err)
@@ -57,8 +110,47 @@ func (cl *LdapClient) LoginValid(username, password string) (bool, error) {
 	return true, nil
 }
 
-func (cl *LdapClient) RegisterUser(name, password string) error {
-	dn, err := cl.CreateUser(name)
+func (cl *LdapClient) RegisterUser(c *gin.Context) {
+    var userInfo map[string]interface{}
+    if err := c.BindJSON(&userInfo); err != nil {
+        c.String(http.StatusBadRequest, "Bad Request")
+        return
+    }
+
+    err := cl.RegisterUserReq(userInfo)
+    if err != nil {
+        c.String(http.StatusInternalServerError, "Internal Server Error")
+        return
+    }
+
+    c.JSON(http.StatusOK, gin.H{"message": "User registered"})
+}
+
+func (cl *LdapClient) RegisterUserReq(userInfo map[string]interface{}) error {
+    username, ok := userInfo["username"].(string)
+    if !ok {
+        return fmt.Errorf("Username not provided or invalid")
+    }
+
+    if len(username) < 1 || len(username) > 20 {
+        return fmt.Errorf("Username must be between 1 and 20 characters")
+    }
+
+    regex := regexp.MustCompile("^[a-zA-Z0-9_-]*$")
+    if !regex.MatchString(username) {
+        return fmt.Errorf("Username must only contain letters, numbers, underscores, and hyphens")
+    }
+
+    password, ok := userInfo["password"].(string)
+    if !ok {
+        return fmt.Errorf("Password not provided or invalid")
+    }
+
+    valid := validatePassword(password)
+    if !valid {
+        return fmt.Errorf("Password must be at least 8 characters long and contain at least one letter and one number")
+    }
+	dn, err := cl.CreateUser(username)
 	if err != nil {
 		return fmt.Errorf("Failed to create user: %v", err)
 	}
@@ -68,7 +160,7 @@ func (cl *LdapClient) RegisterUser(name, password string) error {
 		return fmt.Errorf("Failed to set password: %v", err)
 	}
 
-	err = cl.AddToGroup(dn, cl.config.GroupDN)
+	err = cl.AddToGroup(dn, cl.config.UserGroupDN)
 	if err != nil {
 		return fmt.Errorf("Failed to add user to group: %v", err)
 	}
@@ -84,8 +176,10 @@ func (cl *LdapClient) RegisterUser(name, password string) error {
 func (cl *LdapClient) connect() (ldap.Client, error) {
 	var dialOpts []ldap.DialOpt
 	if strings.HasPrefix(cl.config.URL, "ldaps://") {
-		dialOpts = append(dialOpts, ldap.DialWithTLSConfig(&tls.Config{InsecureSkipVerify: cl.config.InsecureTLS, MinVersion: tls.VersionTLS12}))
-	}
+		dialOpts = append(dialOpts, ldap.DialWithTLSConfig(&tls.Config{InsecureSkipVerify: cl.config.SkipTLSVerify, MinVersion: tls.VersionTLS12}))
+	} else {
+        return nil, fmt.Errorf("Only ldaps:// is supported")
+    }
 	return ldap.DialURL(cl.config.URL, dialOpts...)
 }
 
@@ -109,7 +203,7 @@ func (cl *LdapClient) CreateUser(name string) (string, error) {
 		Vals: []string{"Registered by Goclone"},
 	})
 
-	dn := fmt.Sprintf("%s=%s,%s", cl.config.UserAttribute, name, cl.config.UsersDN)
+	dn := fmt.Sprintf("%s=%s,%s", cl.config.FieldMap.UserIdentifier, name, cl.config.UserOU)
 
 	req := ldap.AddRequest{
 		DN:         dn,
@@ -234,7 +328,31 @@ func (cl *LdapClient) GetUserDN(username string) (string, error) {
 	return entry.DN, nil
 }
 
-func (cl *LdapClient) IsAdmin(username string) (bool, error) {
+func (cl *LdapClient) IsAdmin(c *gin.Context) {
+    user := handlers.GetUser(c)
+    if user == "" {
+        c.String(http.StatusUnauthorized, "Unauthorized")
+        c.Abort()
+        return
+    }
+
+    isAdmin, err := cl.IsAdminReq(user)
+    if err != nil {
+        c.String(http.StatusInternalServerError, "Internal Server Error")
+        c.Abort()
+        return
+    }
+
+    if !isAdmin {
+        c.String(http.StatusForbidden, "Forbidden")
+        c.Abort()
+        return
+    }
+
+    c.Next()
+}
+
+func (cl *LdapClient) IsAdminReq(username string) (bool, error) {
 	req := ldap.NewSearchRequest(
 		cl.config.BaseDN,
 		ldap.ScopeWholeSubtree, ldap.NeverDerefAliases, 0, 0, false,
@@ -291,4 +409,21 @@ func (cl *LdapClient) DeleteUser(username string) error {
 	}
 
 	return nil
+}
+
+func validatePassword(password string) bool {
+	var number, letter bool
+	if len(password) < 8 {
+		return false
+	}
+	for _, c := range password {
+		switch {
+		case uni.IsNumber(c):
+			number = true
+		case uni.IsLetter(c):
+			letter = true
+		}
+	}
+
+	return number && letter
 }

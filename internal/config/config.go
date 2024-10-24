@@ -13,9 +13,9 @@ var (
 
 type Config struct {
 	Core struct {
-		ExternalURL      string
-		ListeningAddress string
-		LogPath          string
+        ExternalURL      string `yaml:"external_url"`
+        ListeningAddress string `yaml:"listening_address"`
+        LogPath          string `yaml:"log_path"`
 	} `yaml:"core"`
 
 	Auth Auth `yaml:"auth"`

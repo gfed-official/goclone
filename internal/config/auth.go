@@ -3,7 +3,7 @@ package config
 import "github.com/go-ldap/ldap/v3"
 
 type Auth struct {
-	Ldap []LdapProvider `yaml:"ldap"`
+	Ldap LdapProvider `yaml:"ldap"`
 }
 
 type CommonAttributes struct {
@@ -24,7 +24,7 @@ type LdapProvider struct {
 	URL                string `yaml:"url"`
 	StartTLS           bool   `yaml:"start_tls"`
 	LDAPS              bool   `yaml:"ldaps"`
-	CertValidation     bool   `yaml:"cert_validation"`
+	SkipTLSVerify      bool   `yaml:"skip_tls_verify"`
 	TlsCertificatePath string `yaml:"tls_certificate_path"`
 	TlsKeyPath         string `yaml:"tls_key_path"`
 
@@ -36,5 +36,7 @@ type LdapProvider struct {
 
 	LoginFilter        string   `yaml:"login_filter"`
 	AdminGroupDN       string   `yaml:"admin_group_dn"`
+    UserGroupDN        string   `yaml:"user_group_dn"`
+    UserOU             string   `yaml:"user_ou"`
 	ParsedAdminGroupDN *ldap.DN `yaml:"-"`
 }

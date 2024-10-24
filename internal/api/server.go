@@ -1,12 +1,13 @@
 package api
 
 import (
-	"fmt"
 	"io"
 	"log"
 	"os"
 
 	"goclone/internal/api/routes"
+	"goclone/internal/auth"
+	"goclone/internal/auth/ldap"
 	"goclone/internal/config"
 
 	"github.com/gin-contrib/sessions"
@@ -16,11 +17,11 @@ import (
 	"github.com/pkg/errors"
 )
 
-func StartAPI(config *config.Config) {
+func StartAPI(conf *config.Config) {
 	//setup logging
 	gin.SetMode(gin.ReleaseMode)
 
-	f, err := os.OpenFile(config.LogPath, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
+	f, err := os.OpenFile(conf.Core.LogPath, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
 	if err != nil {
 		log.Fatal(errors.Wrap(err, "failed to open log file"))
 	}
@@ -29,16 +30,22 @@ func StartAPI(config *config.Config) {
 	log.SetOutput(f)
 	gin.DefaultWriter = io.MultiWriter(f)
 
+    // Setup Auth
+    var authManager auth.AuthManager
+    if (conf.Auth.Ldap != config.LdapProvider{}) {
+        authManager = ldap.NewLdapManager(conf.Auth.Ldap)
+    }
+
 	// setup router
 	router := gin.Default()
-	router.Use(CORSMiddleware(config.Fqdn))
+	router.Use(CORSMiddleware(conf.Core.ExternalURL))
 	router.MaxMultipartMemory = 8 << 20 // 8Mib
 	initCookies(router)
 
 	// add routes
-	routes.AddRoutes(router)
+	routes.AddRoutes(router, authManager)
 
-	log.Fatalln(router.Run(":" + fmt.Sprint(config.Port)))
+	log.Fatalln(router.Run(conf.Core.ListeningAddress))
 }
 
 func CORSMiddleware(fqdn string) gin.HandlerFunc {
