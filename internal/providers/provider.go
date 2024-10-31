@@ -3,10 +3,14 @@ package providers
 import "github.com/gin-gonic/gin"
 
 type Provider interface {
-    GetPods(c *gin.Context)
-    DeletePod(c *gin.Context)
-    GetPresetTemplates(c *gin.Context)
-    GetTemplateVMs(c *gin.Context)
-    CloneFromTemplate(c *gin.Context)
-    CloneCustomPod(c *gin.Context)
+    GetPodsHandler(c *gin.Context)
+    DeletePodHandler(c *gin.Context)
+
+    GetPresetTemplatesHandler(c *gin.Context)
+    GetTemplateVMsHandler(c *gin.Context)
+
+    CloneFromTemplateHandler(c *gin.Context)
+    CloneCustomPodHandler(c *gin.Context)
+
+    RefreshTemplatesHandler(c *gin.Context)
 }

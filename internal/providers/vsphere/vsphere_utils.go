@@ -1,7 +1,7 @@
 package vsphere
 
 import (
-	"goclone/internal/vsphere/vm"
+	"goclone/internal/providers/vsphere/vm"
 	"log"
 	"strings"
 	"sync"
@@ -130,19 +130,19 @@ func GetVMsInResourcePool(rp types.ManagedObjectReference) ([]mo.VirtualMachine,
 	return vms, nil
 }
 
-func HideVMs(vmsToHide []vm.VM, username string) {
+func (v *VSphereClient) HideVMs(vmsToHide []vm.VM, username string) {
 	var wg sync.WaitGroup
 	for _, vm := range vmsToHide {
 		wg.Add(1)
-		go HideVM(&wg, vm.Ref.(*mo.VirtualMachine), username)
+		go v.HideVM(&wg, vm.Ref.(*mo.VirtualMachine), username)
 	}
 	wg.Wait()
 }
 
-func HideVM(wg *sync.WaitGroup, vm *mo.VirtualMachine, username string) {
+func (v *VSphereClient) HideVM(wg *sync.WaitGroup, vm *mo.VirtualMachine, username string) {
 	defer wg.Done()
 	permission := types.Permission{
-		Principal: strings.Join([]string{mainConfig.Domain, username}, "\\"),
+		Principal: strings.Join([]string{v.conf.Domain, username}, "\\"),
 		RoleId:    noAccessRole.RoleId,
 		Propagate: true,
 	}

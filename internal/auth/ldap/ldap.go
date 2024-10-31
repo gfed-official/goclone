@@ -90,8 +90,12 @@ func (cl *LdapClient) Login(c *gin.Context) {
     }
 
     session := sessions.Default(c)
-    session.Set("user", username)
-    session.Save()
+    session.Set("id", username)
+
+    if err := session.Save(); err != nil {
+        c.String(http.StatusInternalServerError, "Internal Server Error")
+        return
+    }
 
     c.JSON(http.StatusOK, gin.H{"message": "Logged in"})
 }
@@ -346,6 +350,13 @@ func (cl *LdapClient) IsAdmin(c *gin.Context) {
     if !isAdmin {
         c.String(http.StatusForbidden, "Forbidden")
         c.Abort()
+        return
+    }
+
+    session := sessions.Default(c)
+    session.Set("isAdmin", true)
+    if err := session.Save(); err != nil {
+        c.String(http.StatusInternalServerError, "Internal Server Error")
         return
     }
 

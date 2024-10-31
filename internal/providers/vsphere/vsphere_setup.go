@@ -3,6 +3,7 @@ package vsphere
 import (
 	"context"
 	"fmt"
+	"goclone/internal/auth"
 	"goclone/internal/config"
 	"log"
 	"net/url"
@@ -20,13 +21,15 @@ import (
 type VSphereClient struct {
 	client *vim25.Client
 	ctx    context.Context
+    conf *config.Provider
+    authMgr auth.AuthManager    
 }
 
 var (
-	ldapConfig    config.LdapConfig
+	authMgr        *auth.AuthManager
 	mainConfig    = &config.Config{}
 	templateMap   = map[string]Template{}
-	vCenterConfig config.VCenterConfig
+	vCenterConfig config.VCenter
 )
 
 var (
@@ -47,14 +50,14 @@ var (
 	competitionResourcePool *object.ResourcePool
 )
 
-func NewVSphereProvider() *VSphereClient {
+func NewVSphereProvider(conf *config.Config, authMgr *auth.AuthManager) *VSphereClient {
 	// setup vSphere client
-	u, err := soap.ParseURL(vCenterConfig.VCenterURL)
+	u, err := soap.ParseURL(conf.VirtProvider.URL)
 	if err != nil {
 		log.Fatalln(errors.Wrap(err, "Error parsing vCenter URL"))
 	}
 
-	u.User = url.UserPassword(vCenterConfig.VCenterUsername, vCenterConfig.VCenterPassword)
+	u.User = url.UserPassword(conf.VirtProvider.ApiUsername, conf.VirtProvider.ApiPassword)
 	ctx := context.Background()
 	client, err := govmomi.NewClient(ctx, u, true)
 	if err != nil {
@@ -64,7 +67,10 @@ func NewVSphereProvider() *VSphereClient {
 	vSphereClient = &VSphereClient{
 		client: client.Client,
 		ctx:    context.Background(),
+        conf:   &conf.VirtProvider,
 	}
+
+    vCenterConfig = conf.VirtProvider.VCenter
 
 	InitializeGovmomi()
 	err = vSphereLoadTakenPortGroups()

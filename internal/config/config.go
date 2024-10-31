@@ -20,7 +20,7 @@ type Config struct {
 
 	Auth Auth `yaml:"auth"`
 
-	Provider Provider `yaml:"provider"`
+	VirtProvider Provider `yaml:"provider"`
 }
 
 func defaultConfig() *Config {

@@ -10,8 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"goclone/internal/auth/ldap"
-	"goclone/internal/vsphere/vm"
+	"goclone/internal/providers/vsphere/vm"
 
 	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
@@ -47,10 +46,11 @@ type Template struct {
 }
 
 var (
-	AvailablePortGroups = &RWPortGroupMap{
+	availablePortGroups = &RWPortGroupMap{
 		Data: make(map[int]string),
 	}
 )
+
 
 func refreshSession() {
 	for {
@@ -100,33 +100,22 @@ func vSphereLoadTakenPortGroups() error {
 	return nil
 }
 
-func vSpherePodLimit(username string) error {
+func (v *VSphereClient) vSpherePodLimit(username string) error {
 	existingPods, err := vSphereGetPods(username)
 
 	if err != nil {
 		return err
 	}
 
-	if len(existingPods) >= vCenterConfig.MaxPodLimit {
+	if len(existingPods) >= v.conf.MaxPodLimit {
 		return errors.New("Max pod limit reached")
 	}
 	return nil
 }
 
-func vSphereGetPresetTemplates(username string) ([]string, error) {
+func (v *VSphereClient) vSphereGetPresetTemplates(isAdmin bool) ([]string, error) {
 	var templates []string
-
-	ldapClient := ldap.LdapClient{}
-	err := ldapClient.Connect()
-	defer ldapClient.Disconnect()
-
-	isAdm, err := ldapClient.IsAdmin(username)
-	if err != nil {
-		return nil, err
-	}
-
 	templateResourcePool, err := finder.ResourcePool(vSphereClient.ctx, vCenterConfig.PresetTemplateResourcePool)
-
 	if err != nil {
 		return nil, errors.Wrap(err, "Failed to find preset template resource pool")
 	}
@@ -138,7 +127,6 @@ func vSphereGetPresetTemplates(username string) ([]string, error) {
 	}
 
 	pc := property.DefaultCollector(vSphereClient.client)
-
 	var rps []mo.ResourcePool
 	err = pc.Retrieve(vSphereClient.ctx, trp.ResourcePool, []string{"name", "customValue"}, &rps)
 	if err != nil {
@@ -154,7 +142,7 @@ func vSphereGetPresetTemplates(username string) ([]string, error) {
 
 		adminOnly := templateMap[rpName].AdminOnly
 
-		if !isAdm && adminOnly {
+		if !isAdmin && adminOnly {
 			continue
 		}
 
@@ -240,8 +228,8 @@ func vSphereGetPods(owner string) ([]Pod, error) {
 	return pods, nil
 }
 
-func vSphereTemplateClone(templateId string, username string) error {
-	err := vSpherePodLimit(username)
+func (v *VSphereClient) vSphereTemplateClone(templateId string, username string) error {
+	err := v.vSpherePodLimit(username)
 	if err != nil {
 		return err
 	}
@@ -265,7 +253,7 @@ func vSphereTemplateClone(templateId string, username string) error {
 	}
 	availablePortGroups.Mu.Unlock()
 
-	err = TemplateClone(templateId, username, nextAvailablePortGroup)
+	err = v.TemplateClone(templateId, username, nextAvailablePortGroup)
 	if err != nil {
 		return err
 	}
@@ -273,8 +261,8 @@ func vSphereTemplateClone(templateId string, username string) error {
 	return nil
 }
 
-func vSphereCustomClone(podName string, vmsToClone []string, nat bool, username string) error {
-	err := vSpherePodLimit(username)
+func (v *VSphereClient) vSphereCustomClone(podName string, vmsToClone []string, nat bool, username string) error {
+	err := v.vSpherePodLimit(username)
 	if err != nil {
 		return err
 	}
@@ -290,7 +278,7 @@ func vSphereCustomClone(podName string, vmsToClone []string, nat bool, username 
 	}
 	availablePortGroups.Mu.Unlock()
 
-	err = CustomClone(podName, vmsToClone, nat, username, nextAvailablePortGroup)
+	err = v.CustomClone(podName, vmsToClone, nat, username, nextAvailablePortGroup)
 	if err != nil {
 		return err
 	}
@@ -298,7 +286,7 @@ func vSphereCustomClone(podName string, vmsToClone []string, nat bool, username 
 	return nil
 }
 
-func TemplateClone(sourceRP, username string, portGroup int) error {
+func (v *VSphereClient) TemplateClone(sourceRP, username string, portGroup int) error {
 	targetRP, pg, newFolder, err := InitializeClone(sourceRP, username, portGroup)
 
 	pgStr := strconv.Itoa(portGroup)
@@ -363,10 +351,10 @@ func TemplateClone(sourceRP, username string, portGroup int) error {
 
 			var networkID string
 			if templateMap[sourceRP].CompetitionPod {
-				octets := strings.Split(vCenterConfig.CompetitionNetworkID, ".")
+				octets := strings.Split(v.conf.CompetitionNetworkID, ".")
 				networkID = fmt.Sprintf("%s.%s", octets[0], octets[1])
 			} else {
-				octets := strings.Split(vCenterConfig.DefaultNetworkID, ".")
+				octets := strings.Split(v.conf.DefaultNetworkID, ".")
 				networkID = fmt.Sprintf("%s.%s", octets[0], octets[1])
 			}
 
@@ -399,7 +387,7 @@ func TemplateClone(sourceRP, username string, portGroup int) error {
 	}
 
 	permission := types.Permission{
-		Principal: strings.Join([]string{mainConfig.Domain, username}, "\\"),
+		Principal: strings.Join([]string{v.conf.Domain, username}, "\\"),
 		RoleId:    cloneRole.RoleId,
 		Propagate: true,
 	}
@@ -412,12 +400,12 @@ func TemplateClone(sourceRP, username string, portGroup int) error {
 		}
 	}
 
-	HideVMs(hiddenVMs, username)
+	v.HideVMs(hiddenVMs, username)
 
 	return nil
 }
 
-func CustomClone(podName string, vmsToClone []string, natted bool, username string, portGroup int) error {
+func (v *VSphereClient) CustomClone(podName string, vmsToClone []string, natted bool, username string, portGroup int) error {
 	targetRP, pg, newFolder, err := InitializeClone(podName, username, portGroup)
 	if err != nil {
 		log.Println(errors.Wrap(err, "Error initializing clone"))
@@ -481,7 +469,7 @@ func CustomClone(podName string, vmsToClone []string, natted bool, username stri
 			return err
 		}
 
-		octets := strings.Split(vCenterConfig.DefaultNetworkID, ".")
+		octets := strings.Split(v.conf.DefaultNetworkID, ".")
 		networkID := fmt.Sprintf("%s.%s", octets[0], octets[1])
 
 		program := types.GuestProgramSpec{
@@ -513,7 +501,7 @@ func CustomClone(podName string, vmsToClone []string, natted bool, username stri
 	}
 
 	permission := types.Permission{
-		Principal: strings.Join([]string{mainConfig.Domain, username}, "\\"),
+		Principal: strings.Join([]string{v.conf.Domain, username}, "\\"),
 		RoleId:    customCloneRole.RoleId,
 		Propagate: true,
 	}

@@ -1,6 +1,7 @@
 package api
 
 import (
+	"fmt"
 	"io"
 	"log"
 	"os"
@@ -9,6 +10,8 @@ import (
 	"goclone/internal/auth"
 	"goclone/internal/auth/ldap"
 	"goclone/internal/config"
+	"goclone/internal/providers"
+	"goclone/internal/providers/vsphere"
 
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-contrib/sessions/cookie"
@@ -34,8 +37,17 @@ func StartAPI(conf *config.Config) {
     var authManager auth.AuthManager
     if (conf.Auth.Ldap != config.LdapProvider{}) {
         authManager = ldap.NewLdapManager(conf.Auth.Ldap)
+        fmt.Println("LDAP Auth Enabled")
     }
 
+    // Setup Virtualization Provider
+    var virtProvider providers.Provider
+    if (conf.VirtProvider.VCenter != config.VCenter{}) {
+        virtProvider = vsphere.NewVSphereProvider(conf, &authManager)
+        fmt.Println("vSphere Provider Enabled")
+    }
+
+    fmt.Println("API Starting")
 	// setup router
 	router := gin.Default()
 	router.Use(CORSMiddleware(conf.Core.ExternalURL))
@@ -43,7 +55,7 @@ func StartAPI(conf *config.Config) {
 	initCookies(router)
 
 	// add routes
-	routes.AddRoutes(router, authManager)
+	routes.AddRoutes(router, authManager, virtProvider)
 
 	log.Fatalln(router.Run(conf.Core.ListeningAddress))
 }
