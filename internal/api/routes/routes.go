@@ -9,14 +9,14 @@ import (
 )
 
 func AddRoutes(router *gin.Engine, authManager auth.AuthManager, virtProvider providers.Provider) {
-    public := router.Group("/api/v2")
+    public := router.Group("/api/v1")
     addPublicRoutes(public, authManager)
 
-    private := router.Group("/api/v2")
+    private := router.Group("/api/v1")
     private.Use(handlers.AuthRequired)
     addPrivateRoutes(private, virtProvider)
 
-    admin := router.Group("/api/v2/admin")
+    admin := router.Group("/api/v1/admin")
     admin.Use(handlers.AuthRequired, authManager.IsAdmin)
     addAdminRoutes(admin, virtProvider)
 }
