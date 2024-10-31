@@ -3,40 +3,40 @@ package config
 import "github.com/go-ldap/ldap/v3"
 
 type Auth struct {
-	Ldap LdapProvider `yaml:"ldap"`
+	Ldap LdapProvider `mapstructure:"ldap"`
 }
 
 type CommonAttributes struct {
-	UserIdentifier string `yaml:"user_identifier"`
-	Email          string `yaml:"email"`
-	FirstName      string `yaml:"first_name"`
-	LastName       string `yaml:"last_name"`
+	UserIdentifier string `mapstructure:"user_identifier"`
+	Email          string `mapstructure:"email"`
+	FirstName      string `mapstructure:"first_name"`
+	LastName       string `mapstructure:"last_name"`
 }
 
 type LdapFields struct {
-	CommonAttributes `yaml:",inline"`
-	GroupMembership  string `yaml:"memberof"`
+	CommonAttributes `mapstructure:",squash"`
+	GroupMembership  string `mapstructure:"memberof"`
 }
 
 type LdapProvider struct {
-	ProviderName string `yaml:"provider_name"`
+	ProviderName string `mapstructure:"provider_name"`
 
-	URL                string `yaml:"url"`
-	StartTLS           bool   `yaml:"start_tls"`
-	LDAPS              bool   `yaml:"ldaps"`
-	SkipTLSVerify      bool   `yaml:"skip_tls_verify"`
-	TlsCertificatePath string `yaml:"tls_certificate_path"`
-	TlsKeyPath         string `yaml:"tls_key_path"`
+	URL                string `mapstructure:"url"`
+	StartTLS           bool   `mapstructure:"start_tls"`
+	LDAPS              bool   `mapstructure:"ldaps"`
+	SkipTLSVerify      bool   `mapstructure:"skip_tls_verify"`
+	TlsCertificatePath string `mapstructure:"tls_certificate_path"`
+	TlsKeyPath         string `mapstructure:"tls_key_path"`
 
-	BaseDN       string `yaml:"base_dn"`
-	BindUser     string `yaml:"bind_user"`
-	BindPassword string `yaml:"bind_password"`
+	BaseDN       string `mapstructure:"base_dn"`
+	BindUser     string `mapstructure:"bind_user"`
+	BindPassword string `mapstructure:"bind_password"`
 
-	FieldMap LdapFields `yaml:"field_map"`
+	FieldMap LdapFields `mapstructure:"field_map"`
 
-	LoginFilter        string   `yaml:"login_filter"`
-	AdminGroupDN       string   `yaml:"admin_group_dn"`
-    UserGroupDN        string   `yaml:"user_group_dn"`
-    UserOU             string   `yaml:"user_ou"`
-	ParsedAdminGroupDN *ldap.DN `yaml:"-"`
+	LoginFilter        string   `mapstructure:"login_filter"`
+	AdminGroupDN       string   `mapstructure:"admin_group_dn"`
+    UserGroupDN        string   `mapstructure:"user_group_dn"`
+    UserOU             string   `mapstructure:"user_ou"`
+	ParsedAdminGroupDN *ldap.DN `mapstructure:"-"`
 }
