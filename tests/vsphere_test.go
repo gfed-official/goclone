@@ -1,6 +1,8 @@
-package main
+package routes
 
 import (
+	"goclone/internal/auth"
+	"goclone/internal/config"
 	"net/http"
 	"os"
 	"testing"
@@ -21,6 +23,11 @@ var (
 )
 
 func init() {
+    conf, err := config.GetConfig()
+    if err != nil {
+        panic(err)
+    }
+
 	gin.SetMode(gin.TestMode)
 	router = gin.Default()
 	router.MaxMultipartMemory = 8 << 20

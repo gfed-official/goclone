@@ -34,17 +34,15 @@ func StartAPI(conf *config.Config) {
 	gin.DefaultWriter = io.MultiWriter(f)
 
     // Setup Auth
-    var authManager auth.AuthManager
-    if (conf.Auth.Ldap != config.LdapProvider{}) {
-        authManager = ldap.NewLdapManager(conf.Auth.Ldap)
-        fmt.Println("LDAP Auth Enabled")
+    authManager := SetupAuthManager(conf)
+    if authManager == nil {
+        panic("No Auth Provider Enabled")
     }
 
     // Setup Virtualization Provider
-    var virtProvider providers.Provider
-    if (conf.VirtProvider.VCenter != config.VCenter{}) {
-        virtProvider = vsphere.NewVSphereProvider(conf, &authManager)
-        fmt.Println("vSphere Provider Enabled")
+    virtProvider := SetupVirtProvider(conf, &authManager)
+    if virtProvider == nil {
+        panic("No Virtualization Provider Enabled")
     }
 
     fmt.Println("API Starting")
@@ -86,4 +84,22 @@ func getUUID() string {
 // It generates a random secret for the cookie store -- not ideal for continuity or invalidating previous cookies, but it's secure and it works
 func initCookies(router *gin.Engine) {
 	router.Use(sessions.Sessions("kamino", cookie.NewStore([]byte("kamino")))) // change to secret
+}
+
+func SetupAuthManager(conf *config.Config) auth.AuthManager {
+    var authManager auth.AuthManager
+    if (conf.Auth.Ldap != config.LdapProvider{}) {
+        authManager = ldap.NewLdapManager(conf.Auth.Ldap)
+        fmt.Println("LDAP Auth Enabled")
+    }
+    return authManager
+}
+
+func SetupVirtProvider(conf *config.Config, authManager *auth.AuthManager) providers.Provider {
+    var virtProvider providers.Provider
+    if (conf.VirtProvider.VCenter != config.VCenter{}) {
+        virtProvider = vsphere.NewVSphereProvider(conf, authManager)
+        fmt.Println("vSphere Provider Enabled")
+    }
+    return virtProvider
 }
