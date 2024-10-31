@@ -5,10 +5,10 @@ name: Test Goclone
 # separate terms of service, privacy policy, and support
 # documentation.
 
-on:
-  push:
-    branches:
-      - development
+#on:
+#  push:
+#    branches:
+#      - development
 jobs:
   test:
     runs-on: [self-hosted]

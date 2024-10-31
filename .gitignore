@@ -1,3 +1,5 @@
-config.conf
+config.yaml
 ssl/*
 log/*
+log
+main
