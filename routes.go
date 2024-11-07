@@ -10,7 +10,7 @@ import (
 
 func addPublicRoutes(g *gin.RouterGroup) {
 	g.POST("/login", login)
-	g.POST("/register", register)
+	//g.POST("/register", register)
 	g.GET("/health", health)
 }
 
