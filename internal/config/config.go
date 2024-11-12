@@ -78,8 +78,8 @@ func BindFromEnvironment() {
     // Provider configuration
     viper.BindEnv("provider.name", "GOCLONE_PROVIDER_NAME")
     viper.BindEnv("provider.url", "GOCLONE_PROVIDER_URL")
-    viper.BindEnv("provider.api_username", "GOCLONE_PROVIDER_API_USERNAME")
-    viper.BindEnv("provider.api_password", "GOCLONE_PROVIDER_API_PASSWORD")
+    viper.BindEnv("provider.api_username", "GOCLONE_PROVIDER_APIUSERNAME")
+    viper.BindEnv("provider.api_password", "GOCLONE_PROVIDER_APIPASSWORD")
     viper.BindEnv("provider.max_pod_limit", "GOCLONE_PROVIDER_MAX_POD_LIMIT")
     viper.BindEnv("provider.default_network_id", "GOCLONE_PROVIDER_DEFAULT_NETWORK_ID")
     viper.BindEnv("provider.competition_network_id", "GOCLONE_PROVIDER_COMPETITION_NETWORK_ID")
