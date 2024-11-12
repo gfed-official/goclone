@@ -27,13 +27,15 @@ func LoadConfig(path string) (*Config, error) {
     viper.SetConfigType("yaml")
 
     BindFromEnvironment()
-
     err := viper.ReadInConfig()
     if err != nil {
         viper.SafeWriteConfig()
     }
 
     cfg := &Config{}
+
+    fmt.Println(viper.Get("provider.api_password"))
+    fmt.Println(viper.AllKeys())
 
     err = viper.Unmarshal(&cfg)
     if err != nil {

@@ -1,7 +1,5 @@
 package config
 
-import ()
-
 type Provider struct {
 	Name                 string `yaml:"name"`
 	URL                  string `yaml:"url"`
