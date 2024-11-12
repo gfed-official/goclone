@@ -7,6 +7,7 @@ import (
 
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
+	"golang.org/x/sync/errgroup"
 )
 
 func (v *VSphereClient) GetPodsHandler(c *gin.Context) {
@@ -116,4 +117,114 @@ func (v *VSphereClient) RefreshTemplatesHandler(c *gin.Context) {
         return
     }
     c.JSON(http.StatusOK, gin.H{"message": "Templates refreshed successfully!"})
+}
+
+func (v *VSphereClient) BulkClonePodsHandler(c *gin.Context) {
+    username := sessions.Default(c).Get("id").(string)
+
+    var form struct {
+        Template string `json:"template"`
+        Names []string `json:"names"`
+    }
+
+    err := c.ShouldBindJSON(&form)
+    if err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+        return
+    }
+
+    fmt.Printf("User %s is cloning %d pods\n", username, len(form.Names))
+    eg := errgroup.Group{}
+    for _, name := range form.Names {
+        if name == "" {
+            continue
+        }
+        eg.Go(func() error {
+            return v.vSphereTemplateClone(form.Template, name)
+        },)
+    }
+
+    if err := eg.Wait(); err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+        return
+    }
+
+    c.JSON(http.StatusOK, gin.H{"message": "Pods deployed successfully!"})
+}
+
+func (v *VSphereClient) BulkDeletePodsHandler(c *gin.Context) {
+    var form struct {
+        Filters []string `json:"filters"`
+    }
+
+    err := c.ShouldBindJSON(&form)
+    if err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+        return
+    }
+
+    failed, err := bulkDeletePods(form.Filters)
+    if err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+        return
+    }
+
+    if len(failed) > 0 {
+        c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to delete pods", "failed": failed})
+        return
+    }
+
+    c.JSON(http.StatusOK, gin.H{"message": "Pods deleted successfully!"})
+}
+
+func (v *VSphereClient) BulkRevertPodHandler(c *gin.Context) {
+    var form struct {
+		Filters  []string `json:"filters"`
+		Snapshot string   `json:"snapshot"`
+	}
+
+	err := c.ShouldBindJSON(&form)
+    if err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+        return
+    }
+
+	failed, err := bulkRevertPods(form.Filters, form.Snapshot)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if len(failed) > 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to revert pods", "failed": failed})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Pods reverted successfully!"})
+}
+
+func (v *VSphereClient) BulkPowerPodHandler(c *gin.Context) {
+    var form struct {
+        Filters []string `json:"filters"`
+        Power   bool   `json:"power"`
+    }
+
+    err := c.ShouldBindJSON(&form)
+    if err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+        return
+    }
+
+    failed, err := bulkPowerPods(form.Filters, form.Power)
+    if err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+        return
+    }
+
+    if len(failed) > 0 {
+        c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to power pods", "failed": failed})
+        return
+    }
+
+    c.JSON(http.StatusOK, gin.H{"message": "Pods powered successfully!"})
 }

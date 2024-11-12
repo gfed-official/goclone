@@ -44,5 +44,9 @@ func addPrivateRoutes(g *gin.RouterGroup, virtProvider providers.Provider) {
 
 func addAdminRoutes(g *gin.RouterGroup, virtProvider providers.Provider) {
     g.GET("/view/pods", virtProvider.GetPodsHandler)
+    g.POST("/pod/clone/bulk", virtProvider.BulkClonePodsHandler)
+	g.DELETE("/pod/delete/bulk", virtProvider.BulkDeletePodsHandler)
+	g.POST("/templates/refresh", virtProvider.RefreshTemplatesHandler)
+	g.POST("/pod/revert/bulk", virtProvider.BulkRevertPodHandler)
+	g.POST("/pod/power/bulk", virtProvider.BulkPowerPodHandler)
 }
-

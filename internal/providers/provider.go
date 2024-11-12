@@ -13,4 +13,8 @@ type Provider interface {
     CloneCustomPodHandler(c *gin.Context)
 
     RefreshTemplatesHandler(c *gin.Context)
+    BulkClonePodsHandler(c *gin.Context)
+    BulkDeletePodsHandler(c *gin.Context)
+    BulkRevertPodHandler(c *gin.Context)
+    BulkPowerPodHandler(c *gin.Context)
 }

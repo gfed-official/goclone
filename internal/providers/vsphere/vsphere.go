@@ -738,3 +738,118 @@ func LoadTemplate(rp *object.ResourcePool, name string) (Template, error) {
 
 	return template, nil
 }
+
+func bulkDeletePods(filters []string) ([]string, error) {
+    pods, err := GetAllPods()
+    if err != nil {
+        return nil, errors.Wrap(err, "Failed to get all pods")
+    }
+    failed := []string{}
+    wg := errgroup.Group{}
+    for _, pod := range pods {
+        podName, err := pod.ObjectName(vSphereClient.ctx)
+        if err != nil {
+            failed = append(failed, podName)
+            continue
+        }
+
+        for _, f := range filters {
+            if f == "" {
+                continue
+            }
+            if strings.Contains(podName, f) {
+                wg.Go(func() error {
+                    err := DestroyResources(podName)
+                    if err != nil {
+                        failed = append(failed, podName)
+                        return err
+                    }
+                    return nil
+                })
+            }
+        }
+    }
+
+    if err := wg.Wait(); err != nil {
+        return failed, errors.Wrap(err, "Failed to destroy resources")
+    }
+
+    return failed, nil
+}
+
+func bulkRevertPods(filters []string, snapshot string) ([]string, error) {
+    pods, err := GetPodsMatchingFilter(filters)
+    if err != nil {
+        return []string{}, errors.Wrap(err, "Error getting pods matching filter")
+    }
+
+    vms, err := GetVMsOfPods(pods)
+    if err != nil {
+        return []string{}, errors.Wrap(err, "Error getting VMs of pods")
+    }
+
+    failed := []string{}
+    wg := errgroup.Group{}
+    for _, vm := range vms {
+        wg.Go(func() error {
+            // Skip Podrouters
+            if strings.Contains(vm.Name, "PodRouter") {
+                return nil
+            }
+            err := vm.RevertSnapshot(snapshot)
+            if err != nil {
+                failed = append(failed, vm.Name)
+                return err
+            }
+            return nil
+        })
+    }
+
+    if err := wg.Wait(); err != nil {
+        return failed, errors.Wrap(err, "Error reverting pods to snapshot")
+    }
+
+    return failed, nil
+}
+
+func bulkPowerPods(filter []string, state bool) ([]string, error) {
+    pods, err := GetPodsMatchingFilter(filter)
+    if err != nil {
+        return []string{}, errors.Wrap(err, "Error getting pods matching filter")
+    }
+
+    vms, err := GetVMsOfPods(pods)
+    if err != nil {
+        return []string{}, errors.Wrap(err, "Error getting VMs of pods")
+    }
+
+    failed := []string{}
+    wg := errgroup.Group{}
+    for _, vm := range vms {
+        wg.Go(func() error {
+            var task *object.Task
+            if state {
+                err = vm.PowerOn()
+            } else {
+                err = vm.PowerOff()
+            }
+            if err != nil {
+                failed = append(failed, vm.Name)
+                return err
+            }
+
+            err = task.Wait(vSphereClient.ctx)
+            if err != nil {
+                log.Println(errors.Wrap(err, "Error waiting for task"))
+                return err
+            }
+            return nil
+        })
+    }
+
+    if err := wg.Wait(); err != nil {
+        return failed, errors.Wrap(err, "Error modifying power state for pods")
+    }
+
+    return failed, nil
+}
