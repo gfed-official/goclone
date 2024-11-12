@@ -22,6 +22,10 @@ import (
 
 func StartAPI(conf *config.Config) {
     fmt.Println(conf)
+    env := os.Environ()
+    for k, e := range env {
+        fmt.Println(k, e)
+    }
 
 	//setup logging
 	gin.SetMode(gin.ReleaseMode)
