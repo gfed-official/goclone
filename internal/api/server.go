@@ -21,6 +21,8 @@ import (
 )
 
 func StartAPI(conf *config.Config) {
+    fmt.Println(&conf)
+
 	//setup logging
 	gin.SetMode(gin.ReleaseMode)
 
