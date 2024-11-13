@@ -33,10 +33,6 @@ func LoadConfig(path string) (*Config, error) {
     }
 
     cfg := &Config{}
-
-    fmt.Println(viper.Get("provider.api_password"))
-    fmt.Println(viper.AllKeys())
-
     err = viper.Unmarshal(&cfg)
     if err != nil {
         return nil, fmt.Errorf("failed to unmarshal config: %v", err)
@@ -78,9 +74,8 @@ func BindFromEnvironment() {
     // Provider configuration
     viper.BindEnv("provider.name", "GOCLONE_PROVIDER_NAME")
     viper.BindEnv("provider.url", "GOCLONE_PROVIDER_URL")
-    viper.BindEnv("provider.api_username", "GOCLONE_PROVIDER_APIUSERNAME")
-    viper.BindEnv("provider.api_password", "GOCLONE_PROVIDER_APIPASSWORD")
-    viper.BindEnv("provider.max_pod_limit", "GOCLONE_PROVIDER_MAX_POD_LIMIT")
+    viper.BindEnv("provider.username", "GOCLONE_PROVIDER_USERNAME")
+    viper.BindEnv("provider.password", "GOCLONE_PROVIDER_PASSWORD")
     viper.BindEnv("provider.default_network_id", "GOCLONE_PROVIDER_DEFAULT_NETWORK_ID")
     viper.BindEnv("provider.competition_network_id", "GOCLONE_PROVIDER_COMPETITION_NETWORK_ID")
     viper.BindEnv("provider.domain", "GOCLONE_PROVIDER_DOMAIN")
@@ -106,6 +101,7 @@ func BindFromEnvironment() {
     viper.BindEnv("provider.vcenter.target_resource_pool", "GOCLONE_PROVIDER_VCENTER_TARGET_RESOURCE_POOL")
     viper.BindEnv("provider.vcenter.template_folder", "GOCLONE_PROVIDER_VCENTER_TEMPLATE_FOLDER")
     viper.BindEnv("provider.vcenter.competition_end_port_group", "GOCLONE_PROVIDER_VCENTER_COMPETITION_END_PORT_GROUP")
+    viper.BindEnv("provider.vcenter.competition_main_distributed_switch", "GOCLONE_PROVIDER_VCENTER_COMPETITION_MAIN_DISTRIBUTED_SWITCH")
     viper.BindEnv("provider.vcenter.competition_resource_pool", "GOCLONE_PROVIDER_VCENTER_COMPETITION_RESOURCE_POOL")
     viper.BindEnv("provider.vcenter.competition_start_port_group", "GOCLONE_PROVIDER_VCENTER_COMPETITION_START_PORT_GROUP")
     viper.BindEnv("provider.vcenter.competition_wan_port_group", "GOCLONE_PROVIDER_VCENTER_COMPETITION_WAN_PORT_GROUP")

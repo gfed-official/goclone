@@ -3,8 +3,8 @@ package config
 type Provider struct {
 	Name                 string `yaml:"name"`
 	URL                  string `yaml:"url"`
-	ApiUsername          string `yaml:"api_username"`
-	ApiPassword          string `yaml:"api_password"`
+	Username          string `yaml:"username"`
+	Password          string `yaml:"password"`
 	MaxPodLimit          int    `yaml:"max_pod_limit"`
 	DefaultNetworkID     string `yaml:"default_network_id"`
 	CompetitionNetworkID string `yaml:"competition_network_id"`
