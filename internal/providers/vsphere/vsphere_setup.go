@@ -52,9 +52,13 @@ var (
 
 func NewVSphereProvider(conf *config.Config, authMgr *auth.AuthManager) *VSphereClient {
 	// setup vSphere client
+
+    fmt.Println(conf.VirtProvider.Username)
+    fmt.Println(conf.VirtProvider)
     fmt.Println("Setting up vSphere Provider")
 	u, err := soap.ParseURL(conf.VirtProvider.URL)
 	if err != nil {
+        fmt.Println("Error parsing vCenter URL")
 		log.Fatalln(errors.Wrap(err, "Error parsing vCenter URL"))
 	}
 
@@ -62,6 +66,7 @@ func NewVSphereProvider(conf *config.Config, authMgr *auth.AuthManager) *VSphere
 	ctx := context.Background()
 	client, err := govmomi.NewClient(ctx, u, true)
 	if err != nil {
+        fmt.Println("Error creating vSphere client")
 		log.Fatalln(errors.Wrap(err, "Error creating vSphere client"))
 	}
 
