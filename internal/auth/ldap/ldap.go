@@ -96,6 +96,7 @@ func (cl *LdapClient) Login(c *gin.Context) {
     if cl.config.AdminGroupDN != "" {
         isAdmin, err = cl.IsAdminReq(username)
         if err != nil {
+            fmt.Println(err)
             c.String(http.StatusInternalServerError, "Internal Server Error")
             return
         }
