@@ -1,7 +1,5 @@
 package config
 
-import "github.com/go-ldap/ldap/v3"
-
 type Auth struct {
 	Ldap LdapProvider `mapstructure:"ldap"`
 }
@@ -38,5 +36,4 @@ type LdapProvider struct {
 	AdminGroupDN       string   `mapstructure:"admin_group_dn"`
     UserGroupDN        string   `mapstructure:"user_group_dn"`
     UserOU             string   `mapstructure:"user_ou"`
-	ParsedAdminGroupDN *ldap.DN `mapstructure:"-"`
 }

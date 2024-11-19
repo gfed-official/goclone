@@ -8,10 +8,6 @@ import (
 	"github.com/spf13/viper"
 )
 
-var (
-	configErrors = []string{}
-)
-
 type Core struct {
     ExternalURL      string `mapstructure:"external_url"`
     ListeningAddress string `mapstructure:"listening_address"`

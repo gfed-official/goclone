@@ -92,6 +92,16 @@ func (cl *LdapClient) Login(c *gin.Context) {
     session := sessions.Default(c)
     session.Set("id", username)
 
+    isAdmin := false
+    if cl.config.AdminGroupDN != "" {
+        isAdmin, err = cl.IsAdminReq(username)
+        if err != nil {
+            c.String(http.StatusInternalServerError, "Internal Server Error")
+            return
+        }
+    }
+    session.Set("isAdmin", isAdmin)
+
     if err := session.Save(); err != nil {
         c.String(http.StatusInternalServerError, "Internal Server Error")
         return
@@ -364,28 +374,43 @@ func (cl *LdapClient) IsAdmin(c *gin.Context) {
 }
 
 func (cl *LdapClient) IsAdminReq(username string) (bool, error) {
-	req := ldap.NewSearchRequest(
-		cl.config.BaseDN,
-		ldap.ScopeWholeSubtree, ldap.NeverDerefAliases, 0, 0, false,
-		fmt.Sprintf("(&(objectClass=user)(%s=%s))", "sAMAccountName", username),
-		[]string{"adminCount"},
-		nil,
-	)
+    // Get Users in Admin DN
+    req := ldap.NewSearchRequest(
+        cl.config.AdminGroupDN,
+        ldap.ScopeWholeSubtree, ldap.NeverDerefAliases, 0, 0, false,
+        "",
+        []string{"member"},
+        nil,
+    )
+
+    // Get Username DN
+    userDN := ldap.NewSearchRequest(
+        cl.config.BaseDN,
+        ldap.ScopeWholeSubtree, ldap.NeverDerefAliases, 0, 0, false,
+        fmt.Sprintf("(&(objectClass=user)(%s=%s))", cl.config.FieldMap.UserIdentifier, username),
+        []string{"dn"},
+        nil,
+    )
 
 	entry, err := cl.SearchEntry(req)
 	if err != nil {
 		return false, fmt.Errorf("Failed to search for user: %v", err)
 	}
 
-	if entry == nil {
-		return false, fmt.Errorf("User not found")
+    userEntry, err := cl.SearchEntry(userDN)
+    if err != nil {
+        return false, fmt.Errorf("Failed to search for user: %v", err)
+    }
+
+	if entry == nil || userEntry == nil {
+		return false, fmt.Errorf("Error finding user or group")
 	}
 
-	for _, count := range entry.GetAttributeValues("adminCount") {
-		if count == "1" {
-			return true, nil
-		}
-	}
+    for _, member := range entry.GetAttributeValues("member") {
+        if member == userEntry.DN {
+            return true, nil
+        }
+    }
 
 	return false, nil
 }

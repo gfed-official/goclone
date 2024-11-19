@@ -82,6 +82,7 @@ func NewVSphereProvider(conf *config.Config, authMgr *auth.AuthManager) *VSphere
 		log.Fatalln(errors.Wrap(err, "Error finding taken port groups"))
 	}
 
+    /*
 	err = LoadTemplates()
 	if err != nil {
 		for key, template := range templateMap {
@@ -90,6 +91,7 @@ func NewVSphereProvider(conf *config.Config, authMgr *auth.AuthManager) *VSphere
 			}
 		}
 	}
+    */
 
 	go refreshSession()
 
