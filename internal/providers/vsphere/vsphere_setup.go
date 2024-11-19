@@ -16,6 +16,7 @@ import (
 	"github.com/vmware/govmomi/vim25/mo"
 	"github.com/vmware/govmomi/vim25/soap"
 	"github.com/vmware/govmomi/vim25/types"
+	"golang.org/x/sync/errgroup"
 )
 
 type VSphereClient struct {
@@ -82,14 +83,14 @@ func NewVSphereProvider(conf *config.Config, authMgr *auth.AuthManager) *VSphere
 		log.Fatalln(errors.Wrap(err, "Error finding taken port groups"))
 	}
 
-	err = LoadTemplates()
-	if err != nil {
-		for key, template := range templateMap {
-			if template.Name == "" {
-				fmt.Println("Error loading template: ", key)
-			}
-		}
-	}
+    eg := errgroup.Group{}
+    eg.Go(func() error {
+        return LoadTemplates()  
+    })
+
+    if err := eg.Wait(); err != nil {
+        fmt.Println("Error loading templates", err)
+    }
 
 	go refreshSession()
 
