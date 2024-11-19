@@ -379,7 +379,7 @@ func (cl *LdapClient) IsAdminReq(username string) (bool, error) {
     req := ldap.NewSearchRequest(
         cl.config.AdminGroupDN,
         ldap.ScopeWholeSubtree, ldap.NeverDerefAliases, 0, 0, false,
-        "",
+        "(objectClass=group)",
         []string{"member"},
         nil,
     )
