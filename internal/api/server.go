@@ -97,7 +97,7 @@ func SetupAuthManager(conf *config.Config) auth.AuthManager {
 
 func SetupVirtProvider(conf *config.Config, authManager *auth.AuthManager) providers.Provider {
     var virtProvider providers.Provider
-    if (conf.VirtProvider.VCenter != config.VCenter{}) {
+    if (conf.Provider.VCenter != config.VCenter{}) {
         virtProvider = vsphere.NewVSphereProvider(conf, authManager)
         fmt.Println("vSphere Provider Enabled")
     }
