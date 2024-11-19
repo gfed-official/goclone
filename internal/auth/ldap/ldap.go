@@ -101,6 +101,7 @@ func (cl *LdapClient) Login(c *gin.Context) {
             return
         }
     }
+    fmt.Println("DEBUG", isAdmin)
     session.Set("isAdmin", isAdmin)
 
     if err := session.Save(); err != nil {
