@@ -26,9 +26,8 @@ func (v *VSphereClient) DeletePodHandler(c *gin.Context) {
     podId := c.Param("podId")
     username := sessions.Default(c).Get("id")
     podOwner := strings.Split(podId, "_")
-    podOwner = podOwner[:len(podOwner)-1]
+    podOwner = podOwner[len(podOwner)-1:]
 
-    fmt.Println(username.(string), podOwner)
     if strings.ToLower(username.(string)) != strings.ToLower(podOwner[0]) {
         c.JSON(http.StatusUnauthorized, gin.H{"message": "Unauthorized"})
         return
