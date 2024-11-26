@@ -38,7 +38,7 @@ func main() {
 
     ctx := context.Background()
     //exp, err := newConsoleExporter()
-    exp, err := newOTLPExporter(ctx)
+    exp, err := newOTLPExporter(ctx, cfg.Core.OtlpEndpoint)
     if err != nil {
         log.Fatal(errors.Wrap(err, "Failed to create OTLP exporter"))
     }
@@ -59,9 +59,9 @@ func newConsoleExporter() (oteltrace.SpanExporter, error) {
     return stdouttrace.New()
 }
 
-func newOTLPExporter(ctx context.Context) (oteltrace.SpanExporter, error) {
+func newOTLPExporter(ctx context.Context, endpoint string) (oteltrace.SpanExporter, error) {
     insecureOpt := otlptracehttp.WithInsecure()
-    endpointOpt := otlptracehttp.WithEndpoint(cfg.Core.OtlpEndpoint)
+    endpointOpt := otlptracehttp.WithEndpoint(endpoint)
     return otlptracehttp.New(ctx, endpointOpt, insecureOpt)
 }
 

@@ -30,8 +30,6 @@ func LoadConfig(path string) (*Config, error) {
 
     viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
     viper.AutomaticEnv()
-    //BindFromEnvironment()
-
 
     cfg := &Config{}
     bindEnvs(cfg)
