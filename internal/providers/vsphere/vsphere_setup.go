@@ -88,7 +88,7 @@ func NewVSphereProvider(conf *config.Config, authMgr *auth.AuthManager) *VSphere
 
     eg := errgroup.Group{}
     eg.Go(func() error {
-        return LoadTemplates()  
+        return LoadTemplates(ctx)  
     })
 
     if err := eg.Wait(); err != nil {

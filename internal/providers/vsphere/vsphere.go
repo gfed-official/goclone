@@ -1,6 +1,7 @@
 package vsphere
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"regexp"
@@ -19,6 +20,7 @@ import (
 	"github.com/vmware/govmomi/property"
 	"github.com/vmware/govmomi/vim25/mo"
 	"github.com/vmware/govmomi/vim25/types"
+	"go.opentelemetry.io/otel/attribute"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -232,7 +234,10 @@ func vSphereGetPods(owner string) ([]Pod, error) {
 	return pods, nil
 }
 
-func (v *VSphereClient) vSphereTemplateClone(templateId string, username string) error {
+func (v *VSphereClient) vSphereTemplateClone(ctx context.Context, templateId string, username string) error {
+    ctx, span := tracer.Start(ctx, "vSphereTemplateClone")
+    defer span.End()
+
 	err := v.vSpherePodLimit(username)
 	if err != nil {
 		return err
@@ -257,7 +262,7 @@ func (v *VSphereClient) vSphereTemplateClone(templateId string, username string)
 	}
 	availablePortGroups.Mu.Unlock()
 
-	err = v.TemplateClone(templateId, username, nextAvailablePortGroup)
+	err = v.TemplateClone(ctx, templateId, username, nextAvailablePortGroup)
 	if err != nil {
 		return err
 	}
@@ -265,7 +270,7 @@ func (v *VSphereClient) vSphereTemplateClone(templateId string, username string)
 	return nil
 }
 
-func (v *VSphereClient) vSphereCustomClone(podName string, vmsToClone []string, nat bool, username string) error {
+func (v *VSphereClient) vSphereCustomClone(ctx context.Context, podName string, vmsToClone []string, nat bool, username string) error {
 	err := v.vSpherePodLimit(username)
 	if err != nil {
 		return err
@@ -282,7 +287,7 @@ func (v *VSphereClient) vSphereCustomClone(podName string, vmsToClone []string, 
 	}
 	availablePortGroups.Mu.Unlock()
 
-	err = v.CustomClone(podName, vmsToClone, nat, username, nextAvailablePortGroup)
+	err = v.CustomClone(ctx, podName, vmsToClone, nat, username, nextAvailablePortGroup)
 	if err != nil {
 		return err
 	}
@@ -290,11 +295,14 @@ func (v *VSphereClient) vSphereCustomClone(podName string, vmsToClone []string, 
 	return nil
 }
 
-func (v *VSphereClient) TemplateClone(sourceRP, username string, portGroup int) error {
-	targetRP, pg, newFolder, err := InitializeClone(sourceRP, username, portGroup)
+func (v *VSphereClient) TemplateClone(ctx context.Context, sourceRP, username string, portGroup int) error {
+    ctx, span := tracer.Start(ctx, "TemplateClone")
+    defer span.End()
+
+	targetRP, pg, newFolder, err := InitializeClone(ctx, sourceRP, username, portGroup)
 
 	pgStr := strconv.Itoa(portGroup)
-	CloneVMs(templateMap[sourceRP].VMs, newFolder, targetRP.Reference(), datastore.Reference(), pg.Reference(), pgStr)
+	CloneVMs(ctx, templateMap[sourceRP].VMs, newFolder, targetRP.Reference(), datastore.Reference(), pg.Reference(), pgStr)
 
 	vmClones, err := newFolder.Children(vSphereClient.ctx)
 	if err != nil {
@@ -409,8 +417,11 @@ func (v *VSphereClient) TemplateClone(sourceRP, username string, portGroup int) 
 	return nil
 }
 
-func (v *VSphereClient) CustomClone(podName string, vmsToClone []string, natted bool, username string, portGroup int) error {
-	targetRP, pg, newFolder, err := InitializeClone(podName, username, portGroup)
+func (v *VSphereClient) CustomClone(ctx context.Context, podName string, vmsToClone []string, natted bool, username string, portGroup int) error {
+    ctx, span := tracer.Start(ctx, "CustomClone")
+    defer span.End()
+
+	targetRP, pg, newFolder, err := InitializeClone(ctx, podName, username, portGroup)
 	if err != nil {
 		log.Println(errors.Wrap(err, "Error initializing clone"))
 		return err
@@ -440,7 +451,7 @@ func (v *VSphereClient) CustomClone(podName string, vmsToClone []string, natted 
 	}
 
 	pgStr := strconv.Itoa(portGroup)
-	CloneVMsFromTemplates(vms, newFolder, targetRP.Reference(), datastore.Reference(), pg.Reference(), pgStr)
+	CloneVMsFromTemplates(ctx, vms, newFolder, targetRP.Reference(), datastore.Reference(), pg.Reference(), pgStr)
 
 	hasRouter := false
 	for _, vm := range vms {
@@ -452,7 +463,7 @@ func (v *VSphereClient) CustomClone(podName string, vmsToClone []string, natted 
 
 	router := vm.VM{}
 	if !hasRouter && natted {
-		router, err := CreateRouter(targetRP.Reference(), datastore.Reference(), newFolder, natted, podName)
+		router, err := CreateRouter(ctx, targetRP.Reference(), datastore.Reference(), newFolder, natted, podName)
 		if err != nil {
 			log.Println(errors.Wrap(err, "Error creating router"))
 			return err
@@ -514,7 +525,10 @@ func (v *VSphereClient) CustomClone(podName string, vmsToClone []string, natted 
 	return nil
 }
 
-func InitializeClone(podName, username string, portGroup int) (*types.ManagedObjectReference, object.NetworkReference, *object.Folder, error) {
+func InitializeClone(ctx context.Context, podName, username string, portGroup int) (*types.ManagedObjectReference, object.NetworkReference, *object.Folder, error) {
+    ctx, span := tracer.Start(ctx, "InitializeClone")
+    defer span.End()
+
 	strPortGroup := strconv.Itoa(int(portGroup))
 	pgName := strings.Join([]string{strPortGroup, vCenterConfig.PortGroupSuffix}, "_")
 	podID := strings.Join([]string{strPortGroup, podName, username}, "_")
@@ -539,23 +553,26 @@ func InitializeClone(podName, username string, portGroup int) (*types.ManagedObj
 	return &targetRP, pg, newFolder, nil
 }
 
-func DestroyResources(podId string) error {
+func DestroyResources(ctx context.Context, podId string) error {
+    ctx, span := tracer.Start(ctx, "DestroyResources")
+    defer span.End()
+
 	resourcePool, err := GetResourcePool(podId)
 	if err != nil {
 		log.Println(errors.Wrap(err, "Error getting resource pool"))
 		return err
 	}
-	DestroyResourcePool(resourcePool)
+	DestroyResourcePool(ctx, resourcePool)
 
 	folder, err := finder.Folder(vSphereClient.ctx, podId)
 	if err != nil {
 		log.Println(errors.Wrap(err, "Error finding folder"))
 	} else {
-		DestroyFolder(folder)
+		DestroyFolder(ctx, folder)
 	}
 
 	pg, err := GetPortGroup(strings.Join([]string{strings.Split(podId, "_")[0], vCenterConfig.PortGroupSuffix}, "_"))
-	err = DestroyPortGroup(pg.Reference())
+	err = DestroyPortGroup(ctx, pg.Reference())
 	if err != nil {
 		log.Println(errors.Wrap(err, "Error destroying portgroup"))
 		return err
@@ -591,7 +608,10 @@ func GetNatOctet(pg string) (int, error) {
 	return pgInt - start + 1, nil
 }
 
-func LoadTemplates() error {
+func LoadTemplates(ctx context.Context) error {
+    ctx, span := tracer.Start(context.Background(), "LoadTemplates")
+    defer span.End()
+
 	rpList, err := GetChildResourcePools(vCenterConfig.PresetTemplateResourcePool)
 	if err != nil {
 		log.Println(errors.Wrap(err, "Error getting child resource pools"))
@@ -604,7 +624,7 @@ func LoadTemplates() error {
 			log.Println(errors.Wrap(err, "Error getting resource pool name"))
 			return err
 		}
-		template, err := LoadTemplate(rp, rpName)
+		template, err := LoadTemplate(ctx, rp, rpName)
 		if err != nil {
 			templateMap[rpName] = Template{}
 			log.Println(errors.Wrap(err, "Error loading template"))
@@ -615,7 +635,12 @@ func LoadTemplates() error {
 	return nil
 }
 
-func LoadTemplate(rp *object.ResourcePool, name string) (Template, error) {
+func LoadTemplate(ctx context.Context, rp *object.ResourcePool, name string) (Template, error) {
+    ctx, span := tracer.Start(ctx, "LoadIndividualTemplate")
+    defer span.End()
+
+    span.SetAttributes(attribute.String("template-name", name))
+
 	attrs, err := GetAllAttributes(rp.Reference())
 	if err != nil {
 		log.Println(errors.Wrap(err, "Error getting attributes"))
@@ -664,7 +689,7 @@ func LoadTemplate(rp *object.ResourcePool, name string) (Template, error) {
 				return false
 			}
 		}) {
-			router, err = CreateRouter(rp.Reference(), datastore.Reference(), templateFolder, natted, name)
+			router, err = CreateRouter(ctx, rp.Reference(), datastore.Reference(), templateFolder, natted, name)
 			vms = append(vms, *router)
 		}
 	}
@@ -743,7 +768,10 @@ func LoadTemplate(rp *object.ResourcePool, name string) (Template, error) {
 	return template, nil
 }
 
-func bulkDeletePods(filters []string) ([]string, error) {
+func bulkDeletePods(ctx context.Context, filters []string) ([]string, error) {
+    ctx, span := tracer.Start(ctx, "bulkDeletePods")
+    defer span.End()
+
     pods, err := GetAllPods()
     if err != nil {
         return nil, errors.Wrap(err, "Failed to get all pods")
@@ -763,7 +791,7 @@ func bulkDeletePods(filters []string) ([]string, error) {
             }
             if strings.Contains(podName, f) {
                 wg.Go(func() error {
-                    err := DestroyResources(podName)
+                    err := DestroyResources(ctx, podName)
                     if err != nil {
                         failed = append(failed, podName)
                         return err

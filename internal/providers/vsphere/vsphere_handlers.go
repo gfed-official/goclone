@@ -14,8 +14,8 @@ import (
 func (v *VSphereClient) GetPodsHandler(c *gin.Context) {
     _, span := tracer.Start(c.Request.Context(), "GET /api/v1/view/pods")
     defer span.End()
-    username := sessions.Default(c).Get("id")
 
+    username := sessions.Default(c).Get("id")
     span.SetAttributes(attribute.String("username", username.(string)))
 
     pods, err := vSphereGetPods(username.(string))
@@ -28,7 +28,7 @@ func (v *VSphereClient) GetPodsHandler(c *gin.Context) {
 }
 
 func (v *VSphereClient) DeletePodHandler(c *gin.Context) {
-    _, span := tracer.Start(c.Request.Context(), "DELETE /api/v1/pod/delete")
+    ctx, span := tracer.Start(c.Request.Context(), "DELETE /api/v1/pod/delete")
     defer span.End()
 
     podId := c.Param("podId")
@@ -43,7 +43,7 @@ func (v *VSphereClient) DeletePodHandler(c *gin.Context) {
         return
     }
 
-    err := DestroyResources(podId)
+    err := DestroyResources(ctx, podId)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -52,6 +52,9 @@ func (v *VSphereClient) DeletePodHandler(c *gin.Context) {
 }
 
 func (v *VSphereClient) GetPresetTemplatesHandler(c *gin.Context) {
+    _, span := tracer.Start(c.Request.Context(), "GET /api/v1/view/templates")
+    defer span.End()
+
     isAdmin := sessions.Default(c).Get("isAdmin").(bool)
     templates, err := v.vSphereGetPresetTemplates(isAdmin)
 	if err != nil {
@@ -62,6 +65,9 @@ func (v *VSphereClient) GetPresetTemplatesHandler(c *gin.Context) {
 }
 
 func (v *VSphereClient) GetTemplateVMsHandler(c *gin.Context) {
+    _, span := tracer.Start(c.Request.Context(), "GET /api/v1/view/template/vms")
+    defer span.End()
+
     templates, err := vSphereGetCustomTemplates()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -71,7 +77,7 @@ func (v *VSphereClient) GetTemplateVMsHandler(c *gin.Context) {
 }
 
 func (v *VSphereClient) CloneFromTemplateHandler(c *gin.Context) {
-    _, span := tracer.Start(c.Request.Context(), "POST /api/v1/pod/clone/template")
+    ctx, span := tracer.Start(c.Request.Context(), "POST /api/v1/pod/clone/template")
     defer span.End()
 
     var jsonData map[string]interface{} // cheaty solution to avoid form struct xd
@@ -88,7 +94,7 @@ func (v *VSphereClient) CloneFromTemplateHandler(c *gin.Context) {
     span.SetAttributes(attribute.String("username", username))
 
 	fmt.Printf("User %s is cloning template %s\n", username, template)
-	err = v.vSphereTemplateClone(template, username)
+	err = v.vSphereTemplateClone(ctx, template, username)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -98,6 +104,9 @@ func (v *VSphereClient) CloneFromTemplateHandler(c *gin.Context) {
 }
 
 func (v *VSphereClient) CloneCustomPodHandler(c *gin.Context) {
+    ctx, span := tracer.Start(c.Request.Context(), "POST /api/v1/pod/clone/custom")
+    defer span.End()
+
     username := sessions.Default(c).Get("id").(string)
 
 	var form struct {
@@ -105,6 +114,11 @@ func (v *VSphereClient) CloneCustomPodHandler(c *gin.Context) {
 		Nat        bool     `json:"nat"`
 		Vmstoclone []string `json:"vmstoclone"`
 	}
+
+    span.SetAttributes(attribute.String("username", username))
+    span.SetAttributes(attribute.String("pod-name", form.Name))
+    span.SetAttributes(attribute.Bool("nat", form.Nat))
+    span.SetAttributes(attribute.StringSlice("vms-to-clone", form.Vmstoclone))
 
 	err := c.ShouldBindJSON(&form)
 	if err != nil {
@@ -118,7 +132,7 @@ func (v *VSphereClient) CloneCustomPodHandler(c *gin.Context) {
 	}
 
 	fmt.Printf("User %s is cloning custom pod %s\n", username, form.Name)
-	err = v.vSphereCustomClone(form.Name, form.Vmstoclone, form.Nat, username)
+	err = v.vSphereCustomClone(ctx, form.Name, form.Vmstoclone, form.Nat, username)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -127,7 +141,10 @@ func (v *VSphereClient) CloneCustomPodHandler(c *gin.Context) {
 }
 
 func (v *VSphereClient) RefreshTemplatesHandler(c *gin.Context) {
-    err := LoadTemplates()
+    ctx, span := tracer.Start(c.Request.Context(), "POST /api/v1/admin/templates/refresh")
+    defer span.End()
+
+    err := LoadTemplates(ctx)
     if err != nil {
         c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
         return
@@ -136,12 +153,20 @@ func (v *VSphereClient) RefreshTemplatesHandler(c *gin.Context) {
 }
 
 func (v *VSphereClient) BulkClonePodsHandler(c *gin.Context) {
+    ctx, span := tracer.Start(c.Request.Context(), "POST /api/v1/admin/pod/clone/bulk")
+    defer span.End()
+
     username := sessions.Default(c).Get("id").(string)
+
 
     var form struct {
         Template string `json:"template"`
         Names []string `json:"names"`
     }
+
+    span.SetAttributes(attribute.String("username", username))
+    span.SetAttributes(attribute.Int("num-clones", len(form.Names)))
+    span.SetAttributes(attribute.String("template", form.Template))
 
     err := c.ShouldBindJSON(&form)
     if err != nil {
@@ -156,7 +181,7 @@ func (v *VSphereClient) BulkClonePodsHandler(c *gin.Context) {
             continue
         }
         eg.Go(func() error {
-            return v.vSphereTemplateClone(form.Template, name)
+            return v.vSphereTemplateClone(ctx, form.Template, name)
         },)
     }
 
@@ -169,9 +194,14 @@ func (v *VSphereClient) BulkClonePodsHandler(c *gin.Context) {
 }
 
 func (v *VSphereClient) BulkDeletePodsHandler(c *gin.Context) {
+    ctx, span := tracer.Start(c.Request.Context(), "DELETE /api/v1/admin/pod/delete/bulk")
+    defer span.End()
+
     var form struct {
         Filters []string `json:"filters"`
     }
+
+    span.SetAttributes(attribute.StringSlice("num-pods", form.Filters))
 
     err := c.ShouldBindJSON(&form)
     if err != nil {
@@ -179,7 +209,7 @@ func (v *VSphereClient) BulkDeletePodsHandler(c *gin.Context) {
         return
     }
 
-    failed, err := bulkDeletePods(form.Filters)
+    failed, err := bulkDeletePods(ctx, form.Filters)
     if err != nil {
         c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
         return

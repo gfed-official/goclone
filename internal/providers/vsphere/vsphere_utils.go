@@ -1,6 +1,7 @@
 package vsphere
 
 import (
+	"context"
 	"goclone/internal/providers/vsphere/vm"
 	"log"
 	"strings"
@@ -11,6 +12,7 @@ import (
 	"github.com/vmware/govmomi/property"
 	"github.com/vmware/govmomi/vim25/mo"
 	"github.com/vmware/govmomi/vim25/types"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 func CreatePortGroup(name string, vlanID int) (object.NetworkReference, error) {
@@ -163,9 +165,15 @@ func GetSnapshotRef(vm vm.VM, name string) types.ManagedObjectReference {
 	return snapshot.Reference()
 }
 
-func CloneVMs(vms []vm.VM, folder *object.Folder, resourcePool, ds, pg types.ManagedObjectReference, pgNum string) {
+func CloneVMs(ctx context.Context, vms []vm.VM, folder *object.Folder, resourcePool, ds, pg types.ManagedObjectReference, pgNum string) {
+    ctx, span := tracer.Start(ctx, "CloneVMs")
+    defer span.End()
+
 	var wg sync.WaitGroup
 	for _, vm := range vms {
+        _, span := tracer.Start(ctx, "CloneVM")
+        defer span.End()
+
 		configSpec, err := vm.ConfigureVMNetwork(&pg, dvsMo)
 		if err != nil {
 			log.Println(errors.Wrap(err, "Failed to configure VM network"))
@@ -183,6 +191,8 @@ func CloneVMs(vms []vm.VM, folder *object.Folder, resourcePool, ds, pg types.Man
 		}
 
 		vm.Name = strings.Join([]string{pgNum, vm.Name}, "-")
+        span.SetAttributes(attribute.String("vm-name", vm.Name))
+
 		folderObj := object.NewFolder(vSphereClient.client, folder.Reference())
 		wg.Add(1)
 		go vm.CloneVM(&wg, &spec, folderObj)
@@ -190,7 +200,10 @@ func CloneVMs(vms []vm.VM, folder *object.Folder, resourcePool, ds, pg types.Man
 	wg.Wait()
 }
 
-func CloneVMsFromTemplates(templates []vm.VM, folder *object.Folder, resourcePool, ds, pg types.ManagedObjectReference, pgNum string) {
+func CloneVMsFromTemplates(ctx context.Context, templates []vm.VM, folder *object.Folder, resourcePool, ds, pg types.ManagedObjectReference, pgNum string) {
+    ctx, span := tracer.Start(ctx, "CloneVMsFromTemplates")
+    defer span.End()
+
 	var wg sync.WaitGroup
 	for _, template := range templates {
 		configSpec, err := template.ConfigureVMNetwork(&pg, dvsMo)
@@ -214,7 +227,10 @@ func CloneVMsFromTemplates(templates []vm.VM, folder *object.Folder, resourcePoo
 	wg.Wait()
 }
 
-func CreateRouter(srcRP, ds types.ManagedObjectReference, folder *object.Folder, natted bool, rpName string) (*mo.VirtualMachine, error) {
+func CreateRouter(ctx context.Context, srcRP, ds types.ManagedObjectReference, folder *object.Folder, natted bool, rpName string) (*mo.VirtualMachine, error) {
+    ctx, span := tracer.Start(ctx, "CreateRouter")
+    defer span.End()
+
 	var templateName, cloneName string
 
 	if natted {
@@ -285,7 +301,10 @@ func GetRouter(srcRPRef types.ManagedObjectReference) (*mo.VirtualMachine, error
 	return &routerMo, nil
 }
 
-func DestroyFolder(folderObj *object.Folder) {
+func DestroyFolder(ctx context.Context, folderObj *object.Folder) {
+    _, span := tracer.Start(ctx, "DestroyFolder")
+    defer span.End()
+
 	vms, err := folderObj.Children(vSphereClient.ctx)
 	if err != nil {
 		log.Println(errors.Wrap(err, "Error getting children"))
@@ -314,7 +333,10 @@ func DestroyFolder(folderObj *object.Folder) {
 	}
 }
 
-func DestroyResourcePool(rpObj *object.ResourcePool) {
+func DestroyResourcePool(ctx context.Context, rpObj *object.ResourcePool) {
+    _, span := tracer.Start(ctx, "DestroyResourcePool")
+    defer span.End()
+
 	task, err := rpObj.Destroy(vSphereClient.ctx)
 	if err != nil {
 		log.Println(errors.Wrap(err, "Error destroying resource pool"))
@@ -326,7 +348,10 @@ func DestroyResourcePool(rpObj *object.ResourcePool) {
 	}
 }
 
-func DestroyPortGroup(pg types.ManagedObjectReference) error {
+func DestroyPortGroup(ctx context.Context, pg types.ManagedObjectReference) error {
+    _, span := tracer.Start(ctx, "DestroyPortGroup")
+    defer span.End()
+
 	pgObj := object.NewNetwork(vSphereClient.client, pg.Reference())
 	task, err := pgObj.Destroy(vSphereClient.ctx)
 	if err != nil {
