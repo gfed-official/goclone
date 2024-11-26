@@ -14,6 +14,7 @@ import (
 	"github.com/gin-gonic/gin"
 	ber "github.com/go-asn1-ber/asn1-ber"
 	"github.com/go-ldap/ldap/v3"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/text/encoding/unicode"
 )
@@ -70,6 +71,8 @@ func (cl *LdapClient) Login(c *gin.Context) {
         c.String(http.StatusBadRequest, "Bad Request")
         return
     }
+
+    span.SetAttributes(attribute.String("username", username))
 
     password, ok := loginInfo["password"].(string)
     if !ok {
