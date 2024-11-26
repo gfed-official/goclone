@@ -17,7 +17,7 @@ import (
 	"github.com/vmware/govmomi/vim25/soap"
 	"github.com/vmware/govmomi/vim25/types"
 	"go.opentelemetry.io/otel/trace"
-	_ "golang.org/x/sync/errgroup"
+	"golang.org/x/sync/errgroup"
 )
 
 type VSphereClient struct {
@@ -86,7 +86,6 @@ func NewVSphereProvider(conf *config.Config, authMgr *auth.AuthManager) *VSphere
 		log.Fatalln(errors.Wrap(err, "Error finding taken port groups"))
 	}
 
-    /*
     eg := errgroup.Group{}
     eg.Go(func() error {
         return LoadTemplates()  
@@ -95,8 +94,6 @@ func NewVSphereProvider(conf *config.Config, authMgr *auth.AuthManager) *VSphere
     if err := eg.Wait(); err != nil {
         fmt.Println("Error loading templates", err)
     }
-    */
-
 
 	go refreshSession()
 
