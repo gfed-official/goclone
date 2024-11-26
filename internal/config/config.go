@@ -6,12 +6,15 @@ import (
 	"strings"
 
 	"github.com/spf13/viper"
+	"go.opentelemetry.io/otel/trace"
 )
 
 type Core struct {
     ExternalURL      string `mapstructure:"external_url"`
     ListeningAddress string `mapstructure:"listening_address"`
     LogPath          string `mapstructure:"log_path"`
+    OtlpEndpoint     string `mapstructure:"otlp_endpoint"`
+    Tracer           trace.Tracer
 }
 
 type Config struct {

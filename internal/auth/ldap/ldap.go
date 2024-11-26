@@ -14,6 +14,7 @@ import (
 	"github.com/gin-gonic/gin"
 	ber "github.com/go-asn1-ber/asn1-ber"
 	"github.com/go-ldap/ldap/v3"
+	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/text/encoding/unicode"
 )
 
@@ -25,14 +26,15 @@ const (
 type LdapClient struct {
 	ldap   ldap.Client
 	config config.LdapProvider
+    tracer trace.Tracer
 }
 
 type ldapControlServerPolicyHints struct {
 	oid string
 }
 
-func NewLdapManager(config config.LdapProvider) *LdapClient {
-    return &LdapClient{config: config}
+func NewLdapManager(config config.LdapProvider, tracer trace.Tracer) *LdapClient {
+    return &LdapClient{config: config, tracer: tracer}
 }
 
 func (cl *LdapClient) Connect() error {
@@ -54,6 +56,9 @@ func (cl *LdapClient) Connect() error {
 }
 
 func (cl *LdapClient) Login(c *gin.Context) {
+    _, span := cl.tracer.Start(c.Request.Context(), "POST /api/v1/login")
+    defer span.End()
+
     var loginInfo map[string]interface{}
     if err := c.BindJSON(&loginInfo); err != nil {
         c.String(http.StatusBadRequest, "Bad Request")

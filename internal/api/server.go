@@ -89,7 +89,7 @@ func initCookies(router *gin.Engine) {
 func SetupAuthManager(conf *config.Config) auth.AuthManager {
     var authManager auth.AuthManager
     if (conf.Auth.Ldap != config.LdapProvider{}) {
-        authManager = ldap.NewLdapManager(conf.Auth.Ldap)
+        authManager = ldap.NewLdapManager(conf.Auth.Ldap, conf.Core.Tracer)
         fmt.Println("LDAP Auth Enabled")
     }
     return authManager
@@ -103,3 +103,4 @@ func SetupVirtProvider(conf *config.Config, authManager *auth.AuthManager) provi
     }
     return virtProvider
 }
+
