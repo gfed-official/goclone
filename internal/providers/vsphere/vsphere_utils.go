@@ -166,9 +166,6 @@ func GetSnapshotRef(vm vm.VM, name string) types.ManagedObjectReference {
 }
 
 func CloneVMs(ctx context.Context, vms []vm.VM, folder *object.Folder, resourcePool, ds, pg types.ManagedObjectReference, pgNum string) {
-    ctx, span := tracer.Start(ctx, "CloneVMs")
-    defer span.End()
-
 	var wg sync.WaitGroup
 	for _, vm := range vms {
         _, span := tracer.Start(ctx, "CloneVM")
@@ -201,11 +198,12 @@ func CloneVMs(ctx context.Context, vms []vm.VM, folder *object.Folder, resourceP
 }
 
 func CloneVMsFromTemplates(ctx context.Context, templates []vm.VM, folder *object.Folder, resourcePool, ds, pg types.ManagedObjectReference, pgNum string) {
-    ctx, span := tracer.Start(ctx, "CloneVMsFromTemplates")
-    defer span.End()
 
 	var wg sync.WaitGroup
 	for _, template := range templates {
+        _, span := tracer.Start(ctx, "CloneVMsFromTemplates")
+        defer span.End()
+
 		configSpec, err := template.ConfigureVMNetwork(&pg, dvsMo)
 		if err != nil {
 			log.Println(errors.Wrap(err, "Failed to configure VM network"))
@@ -220,6 +218,8 @@ func CloneVMsFromTemplates(ctx context.Context, templates []vm.VM, folder *objec
 		}
 
 		template.Name = strings.Join([]string{pgNum, template.Name}, "-")
+        span.SetAttributes(attribute.String("vm-name", template.Name))
+
 		folderObj := object.NewFolder(vSphereClient.client, folder.Reference())
 		wg.Add(1)
 		template.CloneVM(&wg, &spec, folderObj)
