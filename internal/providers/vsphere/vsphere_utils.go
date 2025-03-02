@@ -2,6 +2,7 @@ package vsphere
 
 import (
 	"context"
+	"fmt"
 	"goclone/internal/providers/vsphere/vm"
 	"log"
 	"strings"
@@ -168,8 +169,10 @@ func GetSnapshotRef(vm vm.VM, name string) types.ManagedObjectReference {
 func CloneVMs(vms []vm.VM, folder *object.Folder, resourcePool, ds, pg types.ManagedObjectReference, pgNum string) {
 	var wg sync.WaitGroup
 	for _, vm := range vms {
+        fmt.Println("Cloning VM: ", vm.Name)
 		configSpec, err := vm.ConfigureVMNetwork(&pg, dvsMo)
 		if err != nil {
+            fmt.Println("Failed to configure VM network: ", err)
 			log.Println(errors.Wrap(err, "Failed to configure VM network"))
 		}
 

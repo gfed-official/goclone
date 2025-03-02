@@ -618,6 +618,7 @@ func LoadTemplates(ctx context.Context) error {
 		template, err := LoadTemplate(ctx, rp, rpName)
 		if err != nil {
 			templateMap[rpName] = Template{}
+            fmt.Println("Error loading template: ", rpName, err)
 			log.Println(errors.Wrap(err, "Error loading template"))
 		}
         fmt.Println("Loaded template: ", rpName)
@@ -663,6 +664,7 @@ func LoadTemplate(ctx context.Context, rp *object.ResourcePool, name string) (Te
 
 	vms, err := GetVMsInResourcePool(rp.Reference())
 	if err != nil {
+        fmt.Println("Error getting VMs in resource pool: ", err)
 		log.Println(errors.Wrap(err, "Error getting VMs in resource pool"))
 		return Template{}, err
 	}
@@ -752,6 +754,15 @@ func LoadTemplate(ctx context.Context, rp *object.ResourcePool, name string) (Te
 		NoRouter:       noRouter,
 		WanPG:          pg,
 	}
+
+    fmt.Println("Name: ", name)
+    fmt.Println("SourceRP: ", rp)
+    fmt.Println("VMs: ", vmList)
+    fmt.Println("Natted: ", natted)
+    fmt.Println("AdminOnly: ", adminOnly)
+    fmt.Println("CompetitionPod: ", competitionPod)
+    fmt.Println("NoRouter: ", noRouter)
+    fmt.Println("WanPG: ", pg)
 
 	return template, nil
 }
