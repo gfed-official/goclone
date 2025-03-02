@@ -343,7 +343,14 @@ func (v *VSphereClient) TemplateClone(ctx context.Context, sourceRP, username st
 	}
 
 	if !templateMap[sourceRP].NoRouter {
-		err := router.PowerOn()
+        fmt.Println("Powering on router")
+        fmt.Println(router.String())
+        vmObj := object.NewVirtualMachine(vSphereClient.client, router.Ref.Reference())
+        task, err := vmObj.PowerOn(vSphereClient.ctx)
+        if err != nil {
+            return err
+        }
+        err = task.Wait(vSphereClient.ctx)
 		if err != nil {
 			log.Println(errors.Wrap(err, "Error powering on router"))
 			return err
@@ -629,6 +636,8 @@ func LoadTemplates(ctx context.Context) error {
 			templateMap[rpName] = Template{}
 			log.Println(errors.Wrap(err, "Error loading template"))
 		}
+        fmt.Println("Loaded template: ", rpName)
+        fmt.Println("Template: ", template)
 		templateMap[rpName] = template
 	}
 
