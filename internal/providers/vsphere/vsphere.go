@@ -20,7 +20,6 @@ import (
 	"github.com/vmware/govmomi/property"
 	"github.com/vmware/govmomi/vim25/mo"
 	"github.com/vmware/govmomi/vim25/types"
-	"go.opentelemetry.io/otel/attribute"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -234,10 +233,7 @@ func vSphereGetPods(owner string) ([]Pod, error) {
 	return pods, nil
 }
 
-func (v *VSphereClient) vSphereTemplateClone(ctx context.Context, templateId string, username string) error {
-    ctx, span := tracer.Start(ctx, "vSphereTemplateClone")
-    defer span.End()
-
+func (v *VSphereClient) vSphereTemplateClone(templateId string, username string) error {
 	err := v.vSpherePodLimit(username)
 	if err != nil {
 		return err
@@ -262,7 +258,7 @@ func (v *VSphereClient) vSphereTemplateClone(ctx context.Context, templateId str
 	}
 	availablePortGroups.Mu.Unlock()
 
-	err = v.TemplateClone(ctx, templateId, username, nextAvailablePortGroup)
+	err = v.TemplateClone(templateId, username, nextAvailablePortGroup)
 	if err != nil {
 		return err
 	}
@@ -295,14 +291,11 @@ func (v *VSphereClient) vSphereCustomClone(ctx context.Context, podName string, 
 	return nil
 }
 
-func (v *VSphereClient) TemplateClone(ctx context.Context, sourceRP, username string, portGroup int) error {
-    ctx, span := tracer.Start(ctx, "TemplateClone")
-    defer span.End()
-
-	targetRP, pg, newFolder, err := InitializeClone(ctx, sourceRP, username, portGroup)
+func (v *VSphereClient) TemplateClone(sourceRP, username string, portGroup int) error {
+	targetRP, pg, newFolder, err := InitializeClone(sourceRP, username, portGroup)
 
 	pgStr := strconv.Itoa(portGroup)
-	CloneVMs(ctx, templateMap[sourceRP].VMs, newFolder, targetRP.Reference(), datastore.Reference(), pg.Reference(), pgStr)
+	CloneVMs(templateMap[sourceRP].VMs, newFolder, targetRP.Reference(), datastore.Reference(), pg.Reference(), pgStr)
 
 	vmClones, err := newFolder.Children(vSphereClient.ctx)
 	if err != nil {
@@ -428,7 +421,7 @@ func (v *VSphereClient) CustomClone(ctx context.Context, podName string, vmsToCl
     ctx, span := tracer.Start(ctx, "CustomClone")
     defer span.End()
 
-	targetRP, pg, newFolder, err := InitializeClone(ctx, podName, username, portGroup)
+	targetRP, pg, newFolder, err := InitializeClone(podName, username, portGroup)
 	if err != nil {
 		log.Println(errors.Wrap(err, "Error initializing clone"))
 		return err
@@ -532,10 +525,7 @@ func (v *VSphereClient) CustomClone(ctx context.Context, podName string, vmsToCl
 	return nil
 }
 
-func InitializeClone(ctx context.Context, podName, username string, portGroup int) (*types.ManagedObjectReference, object.NetworkReference, *object.Folder, error) {
-    ctx, span := tracer.Start(ctx, "InitializeClone")
-    defer span.End()
-
+func InitializeClone(podName, username string, portGroup int) (*types.ManagedObjectReference, object.NetworkReference, *object.Folder, error) {
 	strPortGroup := strconv.Itoa(int(portGroup))
 	pgName := strings.Join([]string{strPortGroup, vCenterConfig.PortGroupSuffix}, "_")
 	podID := strings.Join([]string{strPortGroup, podName, username}, "_")
@@ -561,9 +551,6 @@ func InitializeClone(ctx context.Context, podName, username string, portGroup in
 }
 
 func DestroyResources(ctx context.Context, podId string) error {
-    ctx, span := tracer.Start(ctx, "DestroyResources")
-    defer span.End()
-
 	resourcePool, err := GetResourcePool(podId)
 	if err != nil {
 		log.Println(errors.Wrap(err, "Error getting resource pool"))
@@ -616,9 +603,6 @@ func GetNatOctet(pg string) (int, error) {
 }
 
 func LoadTemplates(ctx context.Context) error {
-    ctx, span := tracer.Start(context.Background(), "LoadTemplates")
-    defer span.End()
-
 	rpList, err := GetChildResourcePools(vCenterConfig.PresetTemplateResourcePool)
 	if err != nil {
 		log.Println(errors.Wrap(err, "Error getting child resource pools"))
@@ -645,11 +629,6 @@ func LoadTemplates(ctx context.Context) error {
 }
 
 func LoadTemplate(ctx context.Context, rp *object.ResourcePool, name string) (Template, error) {
-    ctx, span := tracer.Start(ctx, "LoadIndividualTemplate")
-    defer span.End()
-
-    span.SetAttributes(attribute.String("template-name", name))
-
 	attrs, err := GetAllAttributes(rp.Reference())
 	if err != nil {
 		log.Println(errors.Wrap(err, "Error getting attributes"))

@@ -77,9 +77,6 @@ func (v *VSphereClient) GetTemplateVMsHandler(c *gin.Context) {
 }
 
 func (v *VSphereClient) CloneFromTemplateHandler(c *gin.Context) {
-    ctx, span := tracer.Start(c.Request.Context(), "POST /api/v1/pod/clone/template")
-    defer span.End()
-
     var jsonData map[string]interface{} // cheaty solution to avoid form struct xd
 	err := c.ShouldBindJSON(&jsonData)
 	if err != nil {
@@ -90,11 +87,8 @@ func (v *VSphereClient) CloneFromTemplateHandler(c *gin.Context) {
 	template := jsonData["template"].(string)
     username := sessions.Default(c).Get("id").(string)
 
-    span.SetAttributes(attribute.String("template", template))
-    span.SetAttributes(attribute.String("username", username))
-
 	fmt.Printf("User %s is cloning template %s\n", username, template)
-	err = v.vSphereTemplateClone(ctx, template, username)
+	err = v.vSphereTemplateClone(template, username)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -153,9 +147,6 @@ func (v *VSphereClient) RefreshTemplatesHandler(c *gin.Context) {
 }
 
 func (v *VSphereClient) BulkClonePodsHandler(c *gin.Context) {
-    ctx, span := tracer.Start(c.Request.Context(), "POST /api/v1/admin/pod/clone/bulk")
-    defer span.End()
-
     username := sessions.Default(c).Get("id").(string)
 
 
@@ -163,10 +154,6 @@ func (v *VSphereClient) BulkClonePodsHandler(c *gin.Context) {
         Template string `json:"template"`
         Names []string `json:"names"`
     }
-
-    span.SetAttributes(attribute.String("username", username))
-    span.SetAttributes(attribute.Int("num-clones", len(form.Names)))
-    span.SetAttributes(attribute.String("template", form.Template))
 
     err := c.ShouldBindJSON(&form)
     if err != nil {
@@ -181,7 +168,7 @@ func (v *VSphereClient) BulkClonePodsHandler(c *gin.Context) {
             continue
         }
         eg.Go(func() error {
-            return v.vSphereTemplateClone(ctx, form.Template, name)
+            return v.vSphereTemplateClone(form.Template, name)
         },)
     }
 
