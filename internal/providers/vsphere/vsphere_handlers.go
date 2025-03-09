@@ -163,12 +163,12 @@ func (v *VSphereClient) BulkClonePodsHandler(c *gin.Context) {
 
     fmt.Printf("User %s is cloning %d pods\n", username, len(form.Names))
     eg := errgroup.Group{}
-    for _, name := range form.Names {
-        if name == "" {
+    for i := 0; i < len(form.Names); i++ {
+        if form.Names[i] == "" {
             continue
         }
         eg.Go(func() error {
-            return v.vSphereTemplateClone(form.Template, name)
+            return v.vSphereTemplateClone(form.Template, form.Names[i])
         },)
     }
 
